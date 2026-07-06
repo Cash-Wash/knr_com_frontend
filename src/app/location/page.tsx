@@ -38,7 +38,7 @@ export default function LocationPage() {
         {/* HERO */}
         <section className="relative w-full min-h-[420px] md:min-h-[500px] overflow-hidden flex items-end">
           <div className="absolute inset-0">
-            <Image src="/images/location/hero-location.jpg" alt="Location d'Équipements" fill className="object-cover object-center" priority />
+            <Image src="/images/formations.svg" alt="Location d'Équipements" fill className="object-cover object-center" priority />
             <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/20" />
           </div>
           <div className="relative z-10 w-full max-w-[1560px] mx-auto px-5 sm:px-8 pb-16 pt-40">
