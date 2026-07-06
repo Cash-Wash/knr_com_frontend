@@ -44,25 +44,19 @@ export default function Footer() {
 
     return (
         <footer className="relative w-full bg-neutral-950 overflow-hidden">
-            {/* Decorative diamond shapes — bottom right, like on design */}
+            {/* Decorative rotated diamond — bottom right */}
             <div
-                className="absolute bottom-0 right-0 pointer-events-none opacity-30"
+                className="absolute pointer-events-none opacity-50"
                 style={{
-                    width: 300,
-                    height: 300,
-                    background: "rgba(56,189,248,0.12)",
-                    transform: "rotate(45deg) translate(40%, 40%)",
-                    borderRadius: "20px",
-                }}
-            />
-            <div
-                className="absolute bottom-0 right-16 pointer-events-none opacity-15"
-                style={{
-                    width: 200,
-                    height: 200,
-                    background: "rgba(56,189,248,0.1)",
-                    transform: "rotate(45deg) translate(20%, 60%)",
-                    borderRadius: "16px",
+                    width: "630px",
+                    height: "610px",
+                    right: "-80px",
+                    top: "-38px",
+                    transformOrigin: "top left",
+                    backgroundImage: `url("/images/vector-white.svg")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundSize: "contain",
+                    backgroundPosition: "center",
                 }}
             />
 
