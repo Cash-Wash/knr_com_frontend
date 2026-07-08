@@ -101,15 +101,22 @@ export default function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   }, []);
 
   if (isYoutube) {
+    const videoId = src.includes("youtu.be")
+      ? src.split("youtu.be/")[1]?.split("?")[0]
+      : src.split("v=")[1]?.split("&")[0];
+
     return (
       <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl">
         <iframe
-          src={`${src}?autoplay=0&rel=0&modestbranding=1`}
+          src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0&modestbranding=1&showinfo=0&controls=1&color=white&iv_load_policy=3&disablekb=0&fs=1`}
           title={title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           allowFullScreen
           className="absolute inset-0 w-full h-full"
+          style={{ border: "none" }}
         />
+        {/* Sky blue top accent bar — ta couleur */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-sky-400 z-10 pointer-events-none" />
       </div>
     );
   }

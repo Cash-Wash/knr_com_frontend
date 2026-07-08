@@ -174,39 +174,67 @@ export default function StudioPage() {
                         </motion.h2>
 
                         {/* Masonry-style grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {visiblePhotos.map((photo, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    whileInView={{ opacity: 1, scale: 1 }}
-                                    viewport={{ once: true }}
-                                    transition={{ duration: 0.5, delay: i * 0.07 }}
-                                    className={`relative rounded-[10px] overflow-hidden group cursor-pointer ${i === 0 ? "sm:col-span-2 lg:col-span-2 h-72 sm:h-80" :
-                                            i === 2 ? "sm:col-span-2 lg:col-span-1 h-72" :
-                                                i === 5 ? "sm:col-span-2 lg:col-span-2 h-72 sm:h-80" :
-                                                    "h-72"
-                                        }`}
-                                >
-                                    <Image
-                                        src={photo.src}
-                                        alt={`Studio KNR ${i + 1}`}
-                                        fill
-                                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                    />
+                        <div className="flex flex-col gap-4">
+                            {/* Ligne 1 : grande gauche + petite droite */}
+                            <div className="flex gap-4 h-[300px] sm:h-[360px] lg:h-[485px]">
+                                <div className="relative rounded-[10px] overflow-hidden group cursor-pointer flex-[3]">
+                                    <Image src="/images/galerie1.png" alt="Studio KNR 1" fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
-                                </motion.div>
-                            ))}
+                                </div>
+                                <div className="relative rounded-[10px] overflow-hidden group cursor-pointer flex-[2]">
+                                    <Image src="/images/galerie2.png" alt="Studio KNR 2" fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                                </div>
+                            </div>
+
+                            {/* Ligne 2 : petite gauche + petite centre + très petite droite */}
+                            <div className="flex gap-4 h-[300px] sm:h-[360px] lg:h-[485px]">
+                                <div className="relative rounded-[10px] overflow-hidden group cursor-pointer flex-[3]">
+                                    <Image src="/images/galerie3.png" alt="Studio KNR 3" fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                                </div>
+                                <div className="relative rounded-[10px] overflow-hidden group cursor-pointer flex-[3]">
+                                    <Image src="/images/galerie4.png" alt="Studio KNR 4" fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                                </div>
+                                <div className="relative rounded-[10px] overflow-hidden group cursor-pointer flex-[2]">
+                                    <Image src="/images/galerie5.png" alt="Studio KNR 5" fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                                </div>
+                            </div>
+
+                            {/* Ligne 3 : petite gauche + grande droite (inversé) */}
+                            <div className="flex gap-4 h-[300px] sm:h-[360px] lg:h-[485px]">
+                                <div className="relative rounded-[10px] overflow-hidden group cursor-pointer flex-[2]">
+                                    <Image src="/images/galerie6.png" alt="Studio KNR 6" fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                                </div>
+                                <div className="relative rounded-[10px] overflow-hidden group cursor-pointer flex-[3]">
+                                    <Image src="/images/galerie7.png" alt="Studio KNR 7" fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                                </div>
+                            </div>
                         </div>
 
                         {/* Voir plus button */}
                         <div className="flex justify-center mt-12">
                             <button
                                 onClick={() => setShowAllPhotos(!showAllPhotos)}
-                                className="flex items-center gap-4 px-10 py-4 rounded-full border-2 border-white text-white text-base font-semibold font-['Poppins'] hover:bg-white/10 hover:scale-105 transition-all cursor-pointer shadow-[0px_0px_20px_0px_rgba(41,182,232,0.40)]"
+                                className="flex items-center gap-3 px-10 py-4 rounded-full border-2 border-white text-white text-base font-semibold font-['Poppins'] hover:bg-white/10 hover:scale-105 transition-all cursor-pointer shadow-[0px_0px_20px_0px_rgba(41,182,232,0.40)]"
                             >
                                 {showAllPhotos ? "Voir moins" : "Voir plus"}
-                                <div className="w-8 h-0.5 bg-white" />
+                                <svg
+                                    className="w-5 h-5"
+                                    viewBox="0 0 20 20"
+                                    fill="none"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <line x1="2" y1="10" x2="18" y2="10" />
+                                    <polyline points="12,4 18,10 12,16" />
+                                </svg>
                             </button>
                         </div>
                     </div>
@@ -235,8 +263,8 @@ export default function StudioPage() {
                                     viewport={{ once: true }}
                                     transition={{ duration: 0.6, delay: i * 0.1 }}
                                     className={`relative rounded-[20px] p-8 flex flex-col gap-10 ${f.recommended
-                                            ? "bg-white shadow-[0px_13px_28px_0px_rgba(0,0,0,0.10),0px_51px_51px_0px_rgba(0,0,0,0.09)] outline outline-[0.80px] outline-sky-400 hover:shadow-2xl"
-                                            : "bg-white shadow-[0px_1px_10px_0px_rgba(0,0,0,0.11)] outline outline-[0.80px] outline-gray-200 hover:shadow-lg"
+                                        ? "bg-white shadow-[0px_13px_28px_0px_rgba(0,0,0,0.10),0px_51px_51px_0px_rgba(0,0,0,0.09)] outline outline-[0.80px] outline-sky-400 hover:shadow-2xl"
+                                        : "bg-white shadow-[0px_1px_10px_0px_rgba(0,0,0,0.11)] outline outline-[0.80px] outline-gray-200 hover:shadow-lg"
                                         } transition-all duration-300 hover:-translate-y-1`}
                                 >
                                     {f.recommended && (
@@ -259,8 +287,8 @@ export default function StudioPage() {
                                     <button
                                         onClick={() => openModal(f.value)}
                                         className={`w-full py-4 rounded-xl text-xl font-bold font-['Poppins'] transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${f.recommended
-                                                ? "bg-neutral-800 text-white hover:bg-neutral-700"
-                                                : "bg-gray-50 text-gray-900 outline outline-[0.80px] outline-gray-200 hover:bg-gray-100"
+                                            ? "bg-neutral-800 text-white hover:bg-neutral-700"
+                                            : "bg-gray-50 text-gray-900 outline outline-[0.80px] outline-gray-200 hover:bg-gray-100"
                                             }`}
                                     >
                                         Réserver

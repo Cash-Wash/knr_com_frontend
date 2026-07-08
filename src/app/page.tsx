@@ -41,8 +41,13 @@ function HeroSection() {
         <motion.div {...fadeUp(0.1)} className="flex flex-col gap-7 w-full md:max-w-[680px]">
           <div className="flex items-center gap-4">
             <div className="flex -space-x-3">
-              {[1, 2, 3, 4].map(i => (
-                <Image key={i} src="/images/profile-placeholder.png" alt="" width={56} height={56}
+              {[
+                "/images/circle1.png",
+                "/images/circle2.jpg",
+                "/images/circle3.jpg",
+                "/images/circle4.jpg",
+              ].map((src, i) => (
+                <Image key={i} src={src} alt="" width={56} height={56}
                   className="rounded-full border-[3px] border-white w-10 h-10 md:w-14 md:h-14 object-cover" />
               ))}
             </div>
@@ -197,9 +202,9 @@ function ActivitiesSection() {
 
 // ─── KNR WEB TV ──────────────────────────────────────────────────────────────
 const tvShows = [
-  { title: "Tech Talk", sub: "L'innovation au quotidien", episodes: "11 épisodes", img: "/images/show-1.jpg" },
-  { title: "Culture & Création", sub: "L'art sous toutes ses formes", episodes: "11 épisodes", img: "/images/show-2.jpg" },
-  { title: "Tech Talk", sub: "L'innovation au quotidien", episodes: "11 épisodes", img: "/images/show-3.jpg" },
+  { title: "Tech Talk", sub: "L'innovation au quotidien", episodes: "11 épisodes", img: "/images/webtv2.png" },
+  { title: "Culture & Création", sub: "L'art sous toutes ses formes", episodes: "11 épisodes", img: "/images/webtv3.png" },
+  { title: "Tech Talk", sub: "L'innovation au quotidien", episodes: "11 épisodes", img: "/images/webtv4.png" },
 ];
 
 function WebTVSection() {
@@ -226,7 +231,7 @@ function WebTVSection() {
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Featured big */}
           <motion.div {...fadeUp(0.1)} className="relative w-full lg:w-[60%] rounded-2xl overflow-hidden min-h-[400px] lg:min-h-[500px]">
-            <Image src="/images/business-africa.jpg" alt="Business Africa" fill className="object-cover" />
+            <Image src="/images/webtv1.png" alt="Business Africa" fill className="object-cover" />
             {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
             {/* Play button */}
@@ -275,10 +280,10 @@ function WebTVSection() {
 
 // ─── KNR SPOTLIGHT ───────────────────────────────────────────────────────────
 const entrepreneurs = [
-  { name: "Ibrahim Bah Zakkarih", role: "Fondateur & CEO, Entrepreneur", featured: false, img: "/images/entrepreneur-1.jpg" },
-  { name: "Entrepreneur 2", role: "CEO, Innovateur", featured: false, img: "/images/entrepreneur-2.jpg" },
-  { name: "Entrepreneur 3", role: "Fondateur, Créateur", featured: false, img: "/images/entrepreneur-3.jpg" },
-  { name: "Entrepreneur 4", role: "Directeur, Leader", featured: false, img: "/images/entrepreneur-4.jpg" },
+  { name: "Ibrahim Bah Zakkarih", role: "Fondateur & CEO, Entrepreneur", featured: false, img: "/images/entrepreneur1.jpg" },
+  { name: "Entrepreneur 2", role: "CEO, Innovateur", featured: false, img: "/images/entrepreneur2.jpg" },
+  { name: "Entrepreneur 3", role: "Fondateur, Créateur", featured: false, img: "/images/entrepreneur3.jpg" },
+  { name: "Entrepreneur 4", role: "Directeur, Leader", featured: false, img: "/images/entrepreneur4.png" },
 ];
 
 const socialIcons = [
@@ -557,28 +562,28 @@ const teamMembers = [
     role: "Founder & CEO",
     bio: "Former co-founder of Opendoor. Early staff at Spotify and Clearbit.",
     socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/team-1.jpg"
+    img: "/images/equipe1.png"
   },
   {
     name: "Rich Wilson",
     role: "Engineering Manager",
     bio: "Lead engineering teams at Figma, Pitch, and Protocol Labs.",
     socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/team-2.jpg"
+    img: "/images/equipe2.png"
   },
   {
     name: "Annie Stanley",
     role: "Product Manager",
     bio: "Former PM for Airtable, Medium, Ghost, and Lumi.",
     socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/team-3.jpg"
+    img: "/images/equipe3.png"
   },
   {
     name: "Johnny Bell",
     role: "Frontend Developer",
     bio: "Former frontend dev for Linear, Coinbase, and Postscript.",
     socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/team-4.jpg"
+    img: "/images/equipe4.png"
   },
 ];
 
