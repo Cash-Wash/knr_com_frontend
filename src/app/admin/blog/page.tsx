@@ -301,7 +301,7 @@ export default function AdminBlogPage() {
                       ) : <span className="text-stone-300 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3.5 sm:px-5">
-                      <StatusToggle status={article.status} loading={togglingId === article.id} onToggle={() => handleToggle(article)} />
+                      <StatusToggle active={article.status === "published"} loading={togglingId === article.id} onToggle={() => handleToggle(article)} />
                     </td>
                     <td className="px-4 py-3.5 sm:px-5">
                       <div className="flex items-center justify-end gap-1">
