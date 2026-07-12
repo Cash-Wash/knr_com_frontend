@@ -8,6 +8,10 @@ const CAT_COLORS: Record<string, { bg: string; text: string; border: string }> =
   Marketing: { bg: "#fdf2f8", text: "#a21caf", border: "#fbcfe8" },
   Audiovisuel: { bg: "#eef2ff", text: "#4338ca", border: "#c7d2fe" },
   Média: { bg: "#f0fdfa", text: "#0f766e", border: "#99f6e4" },
+  Drones: { bg: "#f1f5f9", text: "#334155", border: "#cbd5e1" },
+  Caméras: { bg: "#fff1f2", text: "#be123c", border: "#fecdd3" },
+  Micros: { bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
+  Éclairages: { bg: "#fefce8", text: "#ca8a04", border: "#fef08a" },
 };
 
 export function catStyle(name?: string | null) {

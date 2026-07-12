@@ -44,7 +44,7 @@ export default function Navbar() {
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="fixed mt-8 top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-40px)] max-w-[1558px] h-20 bg-black rounded-[110px] flex items-center justify-between px-6 md:px-10"
+        className="fixed mt-8 top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-40px)] max-w-[1558px] h-20 bg-black rounded-[110px] flex items-center justify-between px-6 md:pl-10 md:pr-4"
         style={{
           boxShadow:
             "0 0 18px 3px rgba(76,194,236,0.35), 0 0 40px 6px rgba(76,194,236,0.12)",
@@ -76,8 +76,8 @@ export default function Navbar() {
                 {/* Active neon underline */}
                 <span
                   className={`absolute -bottom-1 left-0 w-full h-0.5 rounded-full transition-all duration-300 ${active
-                      ? "opacity-100 bg-sky-400"
-                      : "opacity-0 bg-sky-400 group-hover:opacity-50"
+                    ? "opacity-100 bg-sky-400"
+                    : "opacity-0 bg-sky-400 group-hover:opacity-50"
                     }`}
                   style={
                     active
