@@ -3,18 +3,18 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   Plus, Pencil, Trash2, ChevronDown, Search,
-  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight, Clock, Play,
+  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight, AlertTriangle, Users,
 } from "lucide-react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminNavbar from "@/components/admin/AdminNavbar";
-import EmissionModal from "@/components/admin/emissions/EmissionModal";
-import type { EmissionCategory } from "@/components/admin/emissions/types";
+import FormationModal from "@/components/admin/formations/FormationModal";
+import type { FormationCategory } from "@/components/admin/formations/types";
 import { catStyle } from "@/components/admin/ui/categoryColors";
 import CategoryModal from "@/components/admin/ui/CategoryModal";
 import ConfirmDeleteModal from "@/components/admin/ui/ConfirmDeleteModal";
 import ToastStack from "@/components/admin/ui/Toast";
 import { useToast } from "@/hooks/useToast";
-import { emissions as INITIAL_EMISSIONS, type Emission } from "@/lib/emissions-data";
+import { formations as INITIAL_FORMATIONS, type Formation } from "@/lib/formations-data";
 
 // ─── SIDEBAR COLLAPSE PREFERENCE (persisted, hydration-safe) ─────────────────
 const SIDEBAR_COLLAPSE_KEY = "knr-admin-sidebar-collapsed";
@@ -35,20 +35,20 @@ function setSidebarCollapsedPreference(next: boolean) {
   sidebarCollapseListeners.forEach((listener) => listener());
 }
 
-// ─── MOCK CATEGORIES (dérivées des émissions existantes) ─────────────────────
-function buildInitialCategories(list: Emission[]): EmissionCategory[] {
-  const names = ["Technologie", "Culture", "Business", "Société", "Sport"];
+// ─── MOCK CATEGORIES (dérivées des formations existantes) ────────────────────
+function buildInitialCategories(list: Formation[]): FormationCategory[] {
+  const names = ["Audiovisuel", "Marketing", "Média"];
   return names.map((name, i) => ({
     id: String(i + 1),
     name,
-    count: list.filter((e) => e.categorie === name).length,
+    count: list.filter((f) => f.categorie === name).length,
   }));
 }
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 8;
 
-export default function AdminEmissionsPage() {
+export default function AdminFormationsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isSidebarCollapsed = useSyncExternalStore(
     subscribeSidebarCollapsed,
@@ -63,16 +63,16 @@ export default function AdminEmissionsPage() {
 
   const toggleSidebarCollapse = () => setSidebarCollapsedPreference(!isSidebarCollapsed);
 
-  const [emissions, setEmissions] = useState<Emission[]>(INITIAL_EMISSIONS);
-  const [categories, setCategories] = useState<EmissionCategory[]>(() => buildInitialCategories(INITIAL_EMISSIONS));
+  const [formations, setFormations] = useState<Formation[]>(INITIAL_FORMATIONS);
+  const [categories, setCategories] = useState<FormationCategory[]>(() => buildInitialCategories(INITIAL_FORMATIONS));
   const [loadingData] = useState(false);
 
-  const [isEmissionModalOpen, setIsEmissionModalOpen] = useState(false);
-  const [emissionToEdit, setEmissionToEdit] = useState<Emission | null>(null);
+  const [isFormationModalOpen, setIsFormationModalOpen] = useState(false);
+  const [formationToEdit, setFormationToEdit] = useState<Formation | null>(null);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-  const [emissionToDelete, setEmissionToDelete] = useState<Emission | null>(null);
-  const [deletingEmission, setDeletingEmission] = useState(false);
-  const [catToDelete, setCatToDelete] = useState<EmissionCategory | null>(null);
+  const [formationToDelete, setFormationToDelete] = useState<Formation | null>(null);
+  const [deletingFormation, setDeletingFormation] = useState(false);
+  const [catToDelete, setCatToDelete] = useState<FormationCategory | null>(null);
   const [deletingCat, setDeletingCat] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -81,31 +81,31 @@ export default function AdminEmissionsPage() {
 
   const { toasts, add: addToast, dismiss } = useToast();
 
-  const filtered = emissions.filter((e) => {
+  const filtered = formations.filter((f) => {
     const q = search.toLowerCase();
-    const matchS = e.titre.toLowerCase().includes(q) || e.sousTitre.toLowerCase().includes(q) || e.animateur.toLowerCase().includes(q);
-    const matchC = catFilter === "all" || e.categorie === catFilter;
+    const matchS = f.titre.toLowerCase().includes(q) || f.categorie.toLowerCase().includes(q) || f.formateur.nom.toLowerCase().includes(q);
+    const matchC = catFilter === "all" || f.categorie === catFilter;
     return matchS && matchC;
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const resetPage = useCallback(() => setPage(1), []);
 
-  const handleDeleteEmission = async () => {
-    if (!emissionToDelete) return;
-    setDeletingEmission(true);
+  const handleDeleteFormation = async () => {
+    if (!formationToDelete) return;
+    setDeletingFormation(true);
     const tid = addToast("loading", "Suppression…");
     await new Promise((r) => setTimeout(r, 600));
-    setEmissions((prev) => prev.filter((e) => e.slug !== emissionToDelete.slug));
-    setCategories((prev) => prev.map((c) => c.name === emissionToDelete.categorie ? { ...c, count: Math.max(0, c.count - 1) } : c));
+    setFormations((prev) => prev.filter((f) => f.slug !== formationToDelete.slug));
+    setCategories((prev) => prev.map((c) => c.name === formationToDelete.categorie ? { ...c, count: Math.max(0, c.count - 1) } : c));
     dismiss(tid);
-    addToast("success", `« ${emissionToDelete.titre} » supprimée.`);
-    setEmissionToDelete(null);
-    setDeletingEmission(false);
+    addToast("success", `« ${formationToDelete.titre} » supprimée.`);
+    setFormationToDelete(null);
+    setDeletingFormation(false);
   };
 
   const handleAddCategory = (name: string) => {
-    const newCat: EmissionCategory = { id: Date.now().toString(), name, count: 0 };
+    const newCat: FormationCategory = { id: Date.now().toString(), name, count: 0 };
     setCategories((prev) => [...prev, newCat]);
     addToast("success", `Catégorie « ${name} » créée.`);
   };
@@ -120,10 +120,10 @@ export default function AdminEmissionsPage() {
     setDeletingCat(false);
   };
 
-  const handleSubmitEmission = (data: Emission, originalSlug?: string) => {
+  const handleSubmitFormation = (data: Formation, originalSlug?: string) => {
     if (originalSlug) {
-      const previous = emissions.find((e) => e.slug === originalSlug);
-      setEmissions((prev) => prev.map((e) => e.slug === originalSlug ? data : e));
+      const previous = formations.find((f) => f.slug === originalSlug);
+      setFormations((prev) => prev.map((f) => f.slug === originalSlug ? data : f));
       if (previous && previous.categorie !== data.categorie) {
         setCategories((prev) => prev.map((c) => {
           if (c.name === previous.categorie) return { ...c, count: Math.max(0, c.count - 1) };
@@ -131,17 +131,17 @@ export default function AdminEmissionsPage() {
           return c;
         }));
       }
-      addToast("success", `Émission « ${data.titre} » mise à jour.`);
-      setEmissionToEdit(null);
+      addToast("success", `Formation « ${data.titre} » mise à jour.`);
+      setFormationToEdit(null);
     } else {
-      setEmissions((prev) => [data, ...prev]);
+      setFormations((prev) => [data, ...prev]);
       setCategories((prev) => prev.map((c) => c.name === data.categorie ? { ...c, count: c.count + 1 } : c));
-      addToast("success", `Émission « ${data.titre} » créée.`);
+      addToast("success", `Formation « ${data.titre} » créée.`);
     }
   };
 
-  const totalEpisodes = emissions.reduce((sum, e) => sum + e.episodes, 0);
-  const nbAnimateurs = new Set(emissions.map((e) => e.animateur)).size;
+  const totalPlacesRestantes = formations.reduce((sum, f) => sum + f.placesRestantes, 0);
+  const nbFormateurs = new Set(formations.map((f) => f.formateur.nom)).size;
 
   return (
     <div className="min-h-screen bg-slate-50 text-stone-900">
@@ -166,17 +166,17 @@ export default function AdminEmissionsPage() {
           {/* Header */}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Émissions Web TV</h1>
-              <p className="mt-1 text-sm text-stone-500">Gérez vos émissions, catégories et épisodes.</p>
+              <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Formations</h1>
+              <p className="mt-1 text-sm text-stone-500">Gérez vos formations, catégories et inscriptions.</p>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <button onClick={() => setIsCatModalOpen(true)}
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-sky-400 px-4 py-2.5 text-sm font-semibold text-sky-500 hover:bg-sky-50 transition cursor-pointer sm:flex-none">
                 <FolderPlus size={15} /> Catégorie
               </button>
-              <button onClick={() => { setEmissionToEdit(null); setIsEmissionModalOpen(true); }}
+              <button onClick={() => { setFormationToEdit(null); setIsFormationModalOpen(true); }}
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-600 transition cursor-pointer sm:flex-none">
-                <Plus size={15} /> Nouvelle émission
+                <Plus size={15} /> Nouvelle formation
               </button>
             </div>
           </div>
@@ -184,10 +184,10 @@ export default function AdminEmissionsPage() {
           {/* Stats */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Émissions",   val: emissions.length,  color: "#0ea5e9", bg: "#f0f9ff", border: "#bae6fd" },
-              { label: "Épisodes",    val: totalEpisodes,     color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
-              { label: "Catégories",  val: categories.length, color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-              { label: "Animateurs",  val: nbAnimateurs,      color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
+              { label: "Formations",         val: formations.length,       color: "#0ea5e9", bg: "#f0f9ff", border: "#bae6fd" },
+              { label: "Places restantes",   val: totalPlacesRestantes,    color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+              { label: "Catégories",         val: categories.length,       color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+              { label: "Formateurs",         val: nbFormateurs,            color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
             ].map(({ label, val, color, bg, border }) => (
               <div key={label} className="rounded-2xl px-3 py-4 text-center sm:px-4" style={{ background: bg, border: `1.5px solid ${border}` }}>
                 <p className="text-xl font-black sm:text-2xl" style={{ color }}>{val}</p>
@@ -203,7 +203,7 @@ export default function AdminEmissionsPage() {
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
                 <input type="text" value={search}
                   onChange={(e) => { setSearch(e.target.value); resetPage(); }}
-                  placeholder="Rechercher une émission ou un animateur…"
+                  placeholder="Rechercher une formation ou un formateur…"
                   className="w-full rounded-xl border border-stone-200 bg-slate-50 pl-9 pr-4 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
               </div>
               <div className="relative w-full sm:w-auto">
@@ -220,15 +220,15 @@ export default function AdminEmissionsPage() {
           {/* Table (scroll horizontal sur petits écrans) */}
           <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr className="border-b border-stone-100 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-stone-400">
-                    <th className="px-4 py-3.5 sm:px-5">Émission</th>
-                    <th className="px-4 py-3.5 sm:px-5">Animateur</th>
+                    <th className="px-4 py-3.5 sm:px-5">Formation</th>
+                    <th className="px-4 py-3.5 sm:px-5">Formateur</th>
                     <th className="px-4 py-3.5 sm:px-5">Catégorie</th>
-                    <th className="px-4 py-3.5 sm:px-5">Épisodes</th>
-                    <th className="px-4 py-3.5 sm:px-5">Durée</th>
-                    <th className="px-4 py-3.5 sm:px-5">Tags</th>
+                    <th className="px-4 py-3.5 sm:px-5">Niveau</th>
+                    <th className="px-4 py-3.5 sm:px-5">Prix</th>
+                    <th className="px-4 py-3.5 sm:px-5">Places</th>
                     <th className="px-4 py-3.5 sm:px-5 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -236,45 +236,41 @@ export default function AdminEmissionsPage() {
                   {loadingData ? (
                     <tr><td colSpan={7} className="px-5 py-10 text-center text-stone-400"><Loader2 size={20} className="animate-spin mx-auto" /></td></tr>
                   ) : paginated.length === 0 ? (
-                    <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-stone-400 italic">Aucune émission trouvée.</td></tr>
-                  ) : paginated.map((emission) => {
-                    const cs = catStyle(emission.categorie);
+                    <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-stone-400 italic">Aucune formation trouvée.</td></tr>
+                  ) : paginated.map((formation) => {
+                    const cs = catStyle(formation.categorie);
+                    const lowPlaces = formation.placesRestantes <= 5;
                     return (
-                      <tr key={emission.slug} className="hover:bg-slate-50 transition-colors">
+                      <tr key={formation.slug} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3.5 sm:px-5 max-w-[240px]">
-                          <p className="font-semibold text-stone-800 line-clamp-1">{emission.titre}</p>
-                          <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{emission.slug}</p>
+                          <p className="font-semibold text-stone-800 line-clamp-1">{formation.titre}</p>
+                          <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{formation.slug}</p>
                         </td>
-                        <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap">{emission.animateur}</td>
+                        <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap">{formation.formateur.nom}</td>
                         <td className="px-4 py-3.5 sm:px-5">
                           <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
                             style={{ background: cs.bg, color: cs.text, border: `1px solid ${cs.border}` }}>
-                            <Tag size={9} /> {emission.categorie}
+                            <Tag size={9} /> {formation.categorie}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1"><Play size={11} className="text-sky-400" /> {emission.episodes}</span>
-                        </td>
-                        <td className="px-4 py-3.5 sm:px-5 text-stone-500 whitespace-nowrap text-xs">
-                          <span className="inline-flex items-center gap-1"><Clock size={11} /> {emission.duree}</span>
-                        </td>
-                        <td className="px-4 py-3.5 sm:px-5">
-                          <div className="flex flex-wrap gap-1 max-w-[180px]">
-                            {emission.tags.slice(0, 2).map((tag) => (
-                              <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">{tag}</span>
-                            ))}
-                            {emission.tags.length > 2 && (
-                              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-400">+{emission.tags.length - 2}</span>
-                            )}
-                          </div>
+                        <td className="px-4 py-3.5 sm:px-5 text-stone-500 whitespace-nowrap text-xs">{formation.niveau}</td>
+                        <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap font-semibold text-xs">{formation.prix}</td>
+                        <td className="px-4 py-3.5 sm:px-5 whitespace-nowrap">
+                          {lowPlaces ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+                              <AlertTriangle size={10} /> {formation.placesRestantes}
+                            </span>
+                          ) : (
+                            <span className="text-stone-600 text-xs">{formation.placesRestantes}</span>
+                          )}
                         </td>
                         <td className="px-4 py-3.5 sm:px-5">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => { setEmissionToEdit(emission); setIsEmissionModalOpen(true); }}
+                            <button onClick={() => { setFormationToEdit(formation); setIsFormationModalOpen(true); }}
                               className="rounded-lg p-2 text-stone-400 hover:bg-sky-50 hover:text-sky-500 transition cursor-pointer" title="Modifier">
                               <Pencil size={14} />
                             </button>
-                            <button onClick={() => setEmissionToDelete(emission)}
+                            <button onClick={() => setFormationToDelete(formation)}
                               className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-500 transition cursor-pointer" title="Supprimer">
                               <Trash2 size={14} />
                             </button>
@@ -291,7 +287,7 @@ export default function AdminEmissionsPage() {
             {totalPages > 1 && (
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 bg-slate-50 px-5 py-3">
                 <span className="text-xs text-stone-400">
-                  Page {page} / {totalPages} — {filtered.length} émission{filtered.length !== 1 ? "s" : ""}
+                  Page {page} / {totalPages} — {filtered.length} formation{filtered.length !== 1 ? "s" : ""}
                 </span>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
@@ -311,8 +307,8 @@ export default function AdminEmissionsPage() {
           <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 px-5 py-3.5">
               <div>
-                <h3 className="text-sm font-bold text-stone-700">Catégories d&apos;émissions</h3>
-                <p className="text-xs text-stone-400 mt-0.5">Seules les catégories sans émission peuvent être supprimées.</p>
+                <h3 className="text-sm font-bold text-stone-700">Catégories de formations</h3>
+                <p className="text-xs text-stone-400 mt-0.5">Seules les catégories sans formation peuvent être supprimées.</p>
               </div>
               <button onClick={() => setIsCatModalOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400 px-3 py-1.5 text-xs font-semibold text-sky-500 hover:bg-sky-50 transition cursor-pointer">
@@ -324,7 +320,7 @@ export default function AdminEmissionsPage() {
             ) : (
               <ul className="divide-y divide-stone-50 px-2 py-2">
                 {categories.map((cat) => {
-                  const hasEmissions = cat.count > 0;
+                  const hasFormations = cat.count > 0;
                   const cs = catStyle(cat.name);
                   return (
                     <li key={cat.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-50 group">
@@ -334,13 +330,13 @@ export default function AdminEmissionsPage() {
                       <span className="flex-1 min-w-0 truncate text-sm font-medium text-stone-700">{cat.name}</span>
                       <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
                         style={{ background: cs.bg, color: cs.text, border: `1px solid ${cs.border}` }}>
-                        {cat.count} émission{cat.count !== 1 ? "s" : ""}
+                        {cat.count} formation{cat.count !== 1 ? "s" : ""}
                       </span>
-                      <button onClick={() => { if (!hasEmissions) setCatToDelete(cat); }}
-                        disabled={hasEmissions}
-                        title={hasEmissions ? "Suppression impossible — émissions liées" : "Supprimer"}
+                      <button onClick={() => { if (!hasFormations) setCatToDelete(cat); }}
+                        disabled={hasFormations}
+                        title={hasFormations ? "Suppression impossible — formations liées" : "Supprimer"}
                         className="shrink-0 opacity-0 group-hover:opacity-100 rounded-md p-1 transition-all disabled:cursor-not-allowed cursor-pointer focus-visible:opacity-100"
-                        style={{ color: hasEmissions ? "#d1d5db" : "#ef4444" }}>
+                        style={{ color: hasFormations ? "#d1d5db" : "#ef4444" }}>
                         <Trash2 size={13} />
                       </button>
                     </li>
@@ -349,17 +345,45 @@ export default function AdminEmissionsPage() {
               </ul>
             )}
           </div>
+
+          {/* Formateurs */}
+          <div className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 px-5 py-3.5">
+              <Users size={15} className="text-sky-400" />
+              <h3 className="text-sm font-bold text-stone-700">Formateurs actifs</h3>
+            </div>
+            <ul className="divide-y divide-stone-50 px-2 py-2">
+              {Array.from(new Set(formations.map((f) => f.formateur.nom))).map((nom) => {
+                const f = formations.find((x) => x.formateur.nom === nom)!;
+                const nbFormationsFormateur = formations.filter((x) => x.formateur.nom === nom).length;
+                return (
+                  <li key={nom} className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-slate-50">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-500 text-xs font-bold text-white">
+                      {nom.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-stone-700">{nom}</p>
+                      <p className="truncate text-xs text-stone-400">{f.formateur.titre}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-bold text-stone-500 tabular-nums">
+                      {nbFormationsFormateur} formation{nbFormationsFormateur !== 1 ? "s" : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </main>
       </div>
 
       {/* Modals */}
-      <EmissionModal
-        key={isEmissionModalOpen ? `emission-${emissionToEdit?.slug ?? "new"}` : "emission-closed"}
-        isOpen={isEmissionModalOpen}
-        onClose={() => { setIsEmissionModalOpen(false); setEmissionToEdit(null); }}
+      <FormationModal
+        key={isFormationModalOpen ? `formation-${formationToEdit?.slug ?? "new"}` : "formation-closed"}
+        isOpen={isFormationModalOpen}
+        onClose={() => { setIsFormationModalOpen(false); setFormationToEdit(null); }}
         categories={categories}
-        emission={emissionToEdit}
-        onSubmit={handleSubmitEmission}
+        formation={formationToEdit}
+        onSubmit={handleSubmitFormation}
       />
       <CategoryModal
         key={isCatModalOpen ? "category-open" : "category-closed"}
@@ -367,16 +391,16 @@ export default function AdminEmissionsPage() {
         onClose={() => setIsCatModalOpen(false)}
         existing={categories}
         onSubmit={handleAddCategory}
-        title="Nouvelle catégorie d'émission"
+        title="Nouvelle catégorie de formation"
       />
       <ConfirmDeleteModal
-        isOpen={!!emissionToDelete}
-        onClose={() => { if (!deletingEmission) setEmissionToDelete(null); }}
-        onConfirm={handleDeleteEmission}
-        loading={deletingEmission}
-        title="Supprimer l'émission ?"
-        message={emissionToDelete ? (
-          <span>Supprimer définitivement <strong>« {emissionToDelete.titre} »</strong> ?
+        isOpen={!!formationToDelete}
+        onClose={() => { if (!deletingFormation) setFormationToDelete(null); }}
+        onConfirm={handleDeleteFormation}
+        loading={deletingFormation}
+        title="Supprimer la formation ?"
+        message={formationToDelete ? (
+          <span>Supprimer définitivement <strong>« {formationToDelete.titre} »</strong> ?
             <span className="mt-1.5 block text-red-500 text-[12px]">Cette action est irréversible.</span>
           </span>
         ) : ""}
