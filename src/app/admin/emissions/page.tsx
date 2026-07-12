@@ -144,7 +144,7 @@ export default function AdminEmissionsPage() {
   const nbAnimateurs = new Set(emissions.map((e) => e.animateur)).size;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-stone-900">
+    <div className="admin-light min-h-screen bg-slate-50 text-stone-900">
       <ToastStack toasts={toasts} />
 
       <AdminSidebar

@@ -2,13 +2,14 @@ const jwt = require("jsonwebtoken");
 
 const authMiddleware = (req, res, next) => {
     const token = req.headers.authorization?.replace("Bearer ", "");
+    const secret = process.env.JWT_SECRET || "change-me-in-development";
 
     if (!token) {
         return res.status(401).json({ error: "Unauthorized" });
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, secret);
         req.user = decoded;
         next();
     } catch (error) {

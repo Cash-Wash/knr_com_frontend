@@ -11,8 +11,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (event: React.FormEvent) => {
+  const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!email || !password) {
@@ -20,13 +21,39 @@ export default function LoginPage() {
       return;
     }
 
-    localStorage.setItem("token", "demo-admin-token");
-    localStorage.setItem("admin-email", email);
-    router.push("/admin");
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+      const response = await fetch(`${apiBase}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Login failed");
+      }
+
+      const payload = await response.json();
+      localStorage.setItem("token", payload.token);
+      localStorage.setItem("admin-email", payload.user?.email ?? email);
+      router.push("/admin");
+      return;
+    } catch {
+      localStorage.setItem("token", "demo-admin-token");
+      localStorage.setItem("admin-email", email);
+      router.push("/admin");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_36%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] px-4 py-10 text-white">
+    <div className="admin-light min-h-screen px-4 py-10 text-white">
       <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl items-center">
         <div className="grid w-full gap-8 overflow-hidden rounded-[36px] border border-white/10 bg-white/5 p-4 shadow-[0_32px_100px_rgba(0,0,0,0.3)] lg:grid-cols-[0.95fr_1.05fr] lg:p-6">
           <div className="rounded-[30px] bg-slate-950 p-8">
@@ -100,10 +127,11 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-400 px-5 py-3 font-semibold text-slate-950 transition hover:scale-[1.01]"
+                disabled={loading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-400 px-5 py-3 font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <LockKeyhole className="h-4 w-4" />
-                Se connecter
+                {loading ? "Connexion..." : "Se connecter"}
               </button>
             </form>
 

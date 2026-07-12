@@ -144,7 +144,7 @@ export default function AdminFormationsPage() {
   const nbFormateurs = new Set(formations.map((f) => f.formateur.nom)).size;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-stone-900">
+    <div className="admin-light min-h-screen bg-slate-50 text-stone-900">
       <ToastStack toasts={toasts} />
 
       <AdminSidebar

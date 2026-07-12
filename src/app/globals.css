@@ -4,8 +4,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #020617;
-  --foreground: #e2e8f0;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -17,8 +17,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #020617;
-    --foreground: #e2e8f0;
+    --background: #f8fafc;
+    --foreground: #0f172a;
   }
 }
 
@@ -35,8 +35,8 @@
 
   body {
     background:
-      radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 30%),
-      linear-gradient(180deg, #020617 0%, #0f172a 100%);
+      radial-gradient(circle at top, rgba(14, 165, 233, 0.12), transparent 28%),
+      linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
     color: var(--foreground);
     font-family: 'Inter', system-ui, sans-serif;
   }
@@ -46,6 +46,83 @@
   select,
   button {
     font: inherit;
+  }
+}
+
+@layer utilities {
+  .admin-light {
+    color: #0f172a;
+    background:
+      radial-gradient(circle at top, rgba(14, 165, 233, 0.12), transparent 30%),
+      linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
+  }
+
+  .admin-light [class*="text-white"] {
+    color: #0f172a !important;
+  }
+
+  .admin-light [class*="text-slate-100"],
+  .admin-light [class*="text-slate-200"],
+  .admin-light [class*="text-slate-300"],
+  .admin-light [class*="text-slate-400"],
+  .admin-light [class*="text-slate-500"],
+  .admin-light [class*="text-white/"] {
+    color: #475569 !important;
+  }
+
+  .admin-light [class*="text-stone-500"] {
+    color: #64748b !important;
+  }
+
+  .admin-light [class*="bg-sky-500"][class*="text-white"],
+  .admin-light [class*="bg-sky-400"][class*="text-white"],
+  .admin-light [class*="bg-red-500"][class*="text-white"],
+  .admin-light [class*="bg-emerald-500"][class*="text-white"],
+  .admin-light [class*="bg-amber-500"][class*="text-white"] {
+    color: #ffffff !important;
+  }
+
+  .admin-light [class*="bg-slate-950"],
+  .admin-light [class*="bg-slate-900"],
+  .admin-light [class*="bg-neutral-950"],
+  .admin-light [class*="bg-black/30"],
+  .admin-light [class*="bg-black/20"] {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+  }
+
+  .admin-light [class*="bg-white/5"] {
+    background-color: rgba(240, 249, 255, 0.95) !important;
+  }
+
+  .admin-light [class*="bg-white/10"] {
+    background-color: rgba(226, 232, 240, 0.8) !important;
+  }
+
+  .admin-light [class*="border-white/10"],
+  .admin-light [class*="border-white/20"] {
+    border-color: rgba(148, 163, 184, 0.24) !important;
+  }
+
+  .admin-light [class*="bg-slate-950/60"],
+  .admin-light [class*="bg-slate-950/80"] {
+    background-color: rgba(255, 255, 255, 0.98) !important;
+  }
+
+  .admin-light [class*="bg-slate-900/"],
+  .admin-light [class*="bg-neutral-900/"] {
+    background-color: rgba(248, 250, 252, 0.98) !important;
+  }
+
+  .admin-light [class*="hover:bg-white/10"]:hover,
+  .admin-light [class*="hover:bg-white/8"]:hover,
+  .admin-light [class*="hover:bg-slate-900/70"]:hover {
+    background-color: rgba(241, 245, 249, 1) !important;
+  }
+
+  .admin-light [class*="shadow-[0_32px_100px_rgba(0,0,0,0.3)]"],
+  .admin-light [class*="shadow-[0_24px_80px_rgba(0,0,0,0.25)]"],
+  .admin-light [class*="shadow-[0_20px_60px_rgba(0,0,0,0.18)]"] {
+    box-shadow: 0 22px 60px rgba(15, 23, 42, 0.08) !important;
   }
 }
 

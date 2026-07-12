@@ -1,24 +1,51 @@
 "use client";
 
-import React from "react";
-import AdminSidebar from "@/components/AdminSidebar";
+import React, { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import PrivateRoute from "@/components/PrivateRoute";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminNavbar from "@/components/admin/AdminNavbar";
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const legacyRoutes = ["/admin/blog", "/admin/emissions", "/admin/formations"];
+  const useLegacyShell = legacyRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+
+  useEffect(() => {
+    document.body.style.overflow = isSidebarOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isSidebarOpen]);
+
+  if (useLegacyShell) {
+    return <>{children}</>;
+  }
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.18),_transparent_35%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1680px]">
-        <aside className="sticky top-0 hidden h-screen w-[290px] shrink-0 border-r border-white/10 bg-black/30 px-4 py-5 backdrop-blur-xl lg:block">
-          <AdminSidebar />
-        </aside>
-        <div className="flex min-h-screen flex-1 flex-col">
-          <div className="lg:hidden border-b border-white/10 bg-black/30 px-4 py-4 backdrop-blur-xl">
-            <AdminSidebar />
-          </div>
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <PrivateRoute>
+      <div className="admin-light min-h-screen text-stone-900">
+        <AdminSidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          isCollapsed={isCollapsed}
+          toggleCollapse={() => setIsCollapsed((value) => !value)}
+        />
+
+        <div className={`min-h-screen transition-all duration-300 ${isCollapsed ? "lg:pl-20" : "lg:pl-[265px]"}`}>
+          <AdminNavbar
+            onMenuClick={() => setIsSidebarOpen((value) => !value)}
+            isCollapsed={isCollapsed}
+            toggleCollapse={() => setIsCollapsed((value) => !value)}
+          />
+          <main className="px-4 pb-12 pt-5 lg:px-8 lg:pt-6 space-y-5">
             {children}
           </main>
         </div>
       </div>
-    </div>
+    </PrivateRoute>
   );
 }

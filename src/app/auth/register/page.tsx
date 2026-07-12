@@ -25,7 +25,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_36%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] px-4 py-10 text-white">
+    <div className="admin-light min-h-screen px-4 py-10 text-white">
       <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl items-center">
         <div className="grid w-full gap-8 overflow-hidden rounded-[36px] border border-white/10 bg-white/5 p-4 shadow-[0_32px_100px_rgba(0,0,0,0.3)] lg:grid-cols-[0.95fr_1.05fr] lg:p-6">
           <div className="rounded-[30px] bg-slate-950 p-8">
