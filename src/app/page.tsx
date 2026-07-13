@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Image from "next/image";
@@ -132,9 +132,9 @@ function StatsBand() {
   return (
     <div className="relative w-full py-14 bg-gradient-to-r from-neutral-950 to-neutral-500 border-t border-b border-white/10 overflow-hidden">
       <div className="absolute left-1/2 -translate-x-1/2 -top-36 w-[930px] h-96 bg-sky-400/20 rounded-full blur-[117px] pointer-events-none" />
-      <div className="relative z-10 max-w-[1560px] mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-4">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-12">
         {stats.map((s, i) => (
-          <motion.div key={s.label} {...fadeUp(i * 0.1)} className="flex flex-col items-start gap-2">
+          <motion.div key={s.label} {...fadeUp(i * 0.1)} className="flex flex-col items-center text-center gap-2">
             <span className="text-white text-5xl md:text-7xl font-bold font-['Poppins'] leading-tight">{s.value}</span>
             <span className="text-gray-400 text-base md:text-lg font-medium font-['Poppins']">{s.label}</span>
           </motion.div>
@@ -426,10 +426,12 @@ function PodcastSection() {
               </p>
             </div>
 
-            <button className="flex items-center gap-2 px-8 py-4 bg-sky-400 rounded-full border border-white text-white text-base font-semibold font-['Poppins'] hover:bg-sky-500 hover:scale-105 active:scale-95 transition-all cursor-pointer w-fit">
+            <Link
+              href="/studio"
+              className="flex items-center gap-2 px-8 py-4 bg-sky-400 rounded-full border border-white text-white text-base font-semibold font-['Poppins'] hover:bg-sky-500 hover:scale-105 active:scale-95 transition-all cursor-pointer w-fit">
               Réserver le studio
               <ChevronRight className="w-4 h-4" />
-            </button>
+            </Link>
           </motion.div>
 
           {/* Right: episode list */}
@@ -1100,12 +1102,16 @@ function CTASection() {
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-4">
-          <button className="px-7 py-3.5 bg-white rounded-2xl text-black text-lg font-medium font-['Poppins'] shadow-xl hover:bg-gray-50 hover:scale-105 active:scale-95 transition-all cursor-pointer">
+          <Link
+            href="/studio"
+            className="px-7 py-3.5 bg-white rounded-2xl text-black text-lg font-medium font-['Poppins'] shadow-xl hover:bg-gray-50 hover:scale-105 active:scale-95 transition-all cursor-pointer">
             Réserver notre studio
-          </button>
-          <button className="px-7 py-3.5 bg-transparent rounded-2xl border-2 border-white text-white text-lg font-semibold font-['Poppins'] hover:bg-white/10 hover:scale-105 active:scale-95 transition-all cursor-pointer">
+          </Link>
+          <Link
+            href="/contact"
+            className="px-7 py-3.5 bg-transparent rounded-2xl border-2 border-white text-white text-lg font-semibold font-['Poppins'] hover:bg-white/10 hover:scale-105 active:scale-95 transition-all cursor-pointer">
             Nous contacter
-          </button>
+          </Link>
         </div>
       </motion.div>
     </section>
