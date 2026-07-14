@@ -173,7 +173,7 @@ export default function AdminBlogPage() {
   const nbDraft = articles.filter((a) => a.status === "draft").length;
 
   return (
-    <div className="admin-light min-h-screen bg-slate-50 text-stone-900">
+    <div className="min-h-screen bg-slate-50 text-stone-900">
       <ToastStack toasts={toasts} />
 
       <AdminSidebar
@@ -190,7 +190,7 @@ export default function AdminBlogPage() {
           toggleCollapse={toggleSidebarCollapse}
         />
 
-        <main className="px-4 pb-12 pt-5 lg:px-8 lg:pt-6 space-y-5">
+        <main className="admin-light px-4 pb-12 pt-5 space-y-5 lg:px-8 lg:pt-6">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">

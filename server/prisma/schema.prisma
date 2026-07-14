@@ -140,3 +140,60 @@ model Reunion {
 
   @@map("reunions")
 }
+
+model Formation {
+  id                      String        @id @default(cuid())
+  slug                    String        @unique
+  titre                   String
+  categorie               String
+  sousTitre               String?
+  description             String?       @db.LongText
+  prix                    String?
+  duree                   String?
+  niveau                  String?
+  lieu                    String?
+  debut                   String?
+  fin                     String?
+  placesRestantes         Int           @default(0)
+  joursClotureInscription Int           @default(0)
+  img                     String?
+  competences             Json?
+  modules                 Json?
+  formateurNom            String?
+  formateurTitre          String?
+  formateurBio            String?       @db.LongText
+  formateurPhoto          String?
+  status                  ContentStatus @default(DRAFT)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  @@map("formations")
+}
+
+model ContactMessage {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  subject     String
+  message     String   @db.LongText
+  status      String   @default("NEW")
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("contact_messages")
+}
+
+model Equipment {
+  id          String   @id @default(cuid())
+  name        String
+  category    String?
+  status      String   @default("AVAILABLE")
+  description String?  @db.LongText
+  location    String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("equipment")
+}

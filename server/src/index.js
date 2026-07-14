@@ -85,12 +85,18 @@ function mapReunion(reunion) {
 }
 
 function mapProgrammeItem(item) {
+  const statut = mapRole(item.statut);
   return {
     id: item.id,
     heure: item.heure,
     titre: item.titre,
     description: item.description ?? "",
-    statut: mapRole(item.statut).replace("_", "-"),
+    statut:
+      statut === "current"
+        ? "en-cours"
+        : statut === "past"
+          ? "passé"
+          : "scheduled",
     date: toDateOnly(item.date),
   };
 }
@@ -123,6 +129,59 @@ function mapEmission(emission) {
     publishedAt: toDateOnly(emission.publishedAt),
     updatedAt: toDateOnly(emission.updatedAt),
     author: emission.author?.name ?? "",
+  };
+}
+
+function mapFormation(formation) {
+  return {
+    id: formation.id,
+    slug: formation.slug,
+    titre: formation.titre,
+    categorie: formation.categorie,
+    sousTitre: formation.sousTitre ?? "",
+    description: formation.description ?? "",
+    prix: formation.prix ?? "",
+    duree: formation.duree ?? "",
+    niveau: formation.niveau ?? "",
+    lieu: formation.lieu ?? "",
+    debut: formation.debut ?? "",
+    fin: formation.fin ?? "",
+    placesRestantes: formation.placesRestantes,
+    joursClotureInscription: formation.joursClotureInscription,
+    img: formation.img ?? "",
+    competences: Array.isArray(formation.competences) ? formation.competences : [],
+    modules: Array.isArray(formation.modules) ? formation.modules : [],
+    formateur: {
+      nom: formation.formateurNom ?? "",
+      titre: formation.formateurTitre ?? "",
+      bio: formation.formateurBio ?? "",
+      photo: formation.formateurPhoto ?? "",
+    },
+    status: mapRole(formation.status).toLowerCase(),
+  };
+}
+
+function mapContactMessage(message) {
+  return {
+    id: message.id,
+    name: message.name,
+    email: message.email,
+    subject: message.subject,
+    message: message.message,
+    status: message.status,
+    assignedTo: message.assignedTo ?? "",
+  };
+}
+
+function mapEquipment(item) {
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category ?? "",
+    status: item.status,
+    description: item.description ?? "",
+    location: item.location ?? "",
+    image: item.image ?? "",
   };
 }
 
@@ -309,6 +368,83 @@ async function seedDatabase() {
       ],
     });
   }
+
+  if ((await prisma.formation.count()) === 0) {
+    await prisma.formation.createMany({
+      data: [
+        {
+          slug: createSlug("Communication digitale & Social Media"),
+          titre: "Communication digitale & Social Media",
+          categorie: "Marketing",
+          sousTitre: "Growth Marketing Africa",
+          description: "Maitrisez les outils et strategies de la communication digitale pour developper la visibilite d'une marque.",
+          prix: "150 000 XOF",
+          duree: "3 mois (120 heures)",
+          niveau: "Debutant a Intermediaire",
+          lieu: "KNR COM, BENIN (Cotonou)",
+          debut: "15 Octobre 2026",
+          fin: "15 Janvier 2027",
+          placesRestantes: 5,
+          joursClotureInscription: 12,
+          img: "/images/emission.jpg",
+          competences: ["Strategie social media", "Creation de contenu", "Publicite en ligne"],
+          modules: [
+            { numero: 1, label: "Module 1", titre: "Fondamentaux", desc: "Comprendre l'ecosysteme digital." },
+            { numero: 2, label: "Module 2", titre: "Social Media", desc: "Animer une communaute en ligne." },
+          ],
+          formateurNom: "Idriss Diop",
+          formateurTitre: "Experte Digital",
+          formateurBio: "Plus de 10 ans d'experience dans la strategie digitale pour de grandes marques.",
+          formateurPhoto: "/images/team/formateur-1.jpg",
+          status: "PUBLISHED",
+        },
+      ],
+    });
+  }
+
+  if ((await prisma.equipment.count()) === 0) {
+    await prisma.equipment.createMany({
+      data: [
+        {
+          name: "Camera studio",
+          category: "Video",
+          status: "RESERVED",
+          description: "Camera principale reservee pour le live du jour.",
+          location: "Studio principal",
+          image: "/images/webtv1.png",
+        },
+        {
+          name: "Kit micro",
+          category: "Audio",
+          status: "AVAILABLE",
+          description: "Microphones et accessoires disponibles.",
+          location: "Regie audio",
+          image: "/images/webtv2.png",
+        },
+      ],
+    });
+  }
+
+  if ((await prisma.contactMessage.count()) === 0) {
+    await prisma.contactMessage.createMany({
+      data: [
+        {
+          name: "Client Partenaire",
+          email: "partenaire@example.com",
+          subject: "Demande de partenariat",
+          message: "Bonjour, nous souhaitons discuter d'une collaboration media.",
+          status: "NEW",
+        },
+        {
+          name: "Equipe terrain",
+          email: "terrain@example.com",
+          subject: "Retour sur le live",
+          message: "Le flux de diffusion etait stable pendant la plage du soir.",
+          status: "IN_PROGRESS",
+        },
+      ],
+    });
+  }
 }
 
 const asyncHandler = (handler) => (req, res, next) => {
@@ -355,6 +491,42 @@ app.get("/api/auth/me", authMiddleware, asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "User not found" });
   }
   res.json({ user: mapUser(user) });
+}));
+
+app.patch("/api/auth/me", authMiddleware, asyncHandler(async (req, res) => {
+  const { name, phone, bio, currentPassword, newPassword } = req.body ?? {};
+
+  const user = await prisma.user.findUnique({ where: { id: req.user.sub } });
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  if (currentPassword || newPassword) {
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Mot de passe actuel et nouveau mot de passe requis." });
+    }
+
+    const validPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: "Mot de passe actuel invalide." });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "Le nouveau mot de passe est trop court." });
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: req.user.sub },
+    data: {
+      ...(name !== undefined ? { name } : {}),
+      ...(phone !== undefined ? { phone: phone || null } : {}),
+      ...(bio !== undefined ? { bio: bio || null } : {}),
+      ...(newPassword ? { password: await bcrypt.hash(newPassword, 10) } : {}),
+    },
+  });
+
+  res.json({ user: mapUser(updated) });
 }));
 
 app.get("/api/dashboard/summary", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
@@ -526,8 +698,9 @@ app.get("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (_r
 }));
 
 app.post("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const { titre, description = "", scheduledAt, hostId, participants = [] } = req.body ?? {};
-  if (!titre || !scheduledAt || !hostId) {
+  const { titre, description = "", scheduledAt, hostId, host, participants = [] } = req.body ?? {};
+  const resolvedHostId = hostId || req.user.sub;
+  if (!titre || !scheduledAt) {
     return res.status(400).json({ error: "Titre, date et responsable requis." });
   }
 
@@ -536,7 +709,7 @@ app.post("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (r
       titre,
       description: description || null,
       scheduledAt: new Date(scheduledAt),
-      hostId,
+      hostId: resolvedHostId,
       status: "SCHEDULED",
       participants,
     },
@@ -549,7 +722,7 @@ app.post("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (r
 
 app.patch("/api/reunions/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { titre, description, scheduledAt, hostId, status, participants } = req.body ?? {};
+  const { titre, description, scheduledAt, hostId, host, status, participants } = req.body ?? {};
 
   const reunion = await prisma.reunion.update({
     where: { id },
@@ -557,7 +730,7 @@ app.patch("/api/reunions/:id", authMiddleware, adminMiddleware, asyncHandler(asy
       ...(titre ? { titre } : {}),
       ...(description !== undefined ? { description: description || null } : {}),
       ...(scheduledAt ? { scheduledAt: new Date(scheduledAt) } : {}),
-      ...(hostId ? { hostId } : {}),
+      ...(hostId ? { hostId } : host ? { hostId: req.user.sub } : {}),
       ...(status ? { status: String(status).toUpperCase() } : {}),
       ...(participants ? { participants } : {}),
     },
@@ -728,6 +901,222 @@ app.delete("/api/emissions/:id", authMiddleware, adminMiddleware, asyncHandler(a
   res.status(204).end();
 }));
 
+app.get("/api/formations", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  const formations = await prisma.formation.findMany({ orderBy: { updatedAt: "desc" } });
+  res.json(formations.map(mapFormation));
+}));
+
+app.post("/api/formations", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const {
+    slug,
+    titre,
+    categorie,
+    sousTitre = "",
+    description = "",
+    prix = "",
+    duree = "",
+    niveau = "",
+    lieu = "",
+    debut = "",
+    fin = "",
+    placesRestantes = 0,
+    joursClotureInscription = 0,
+    img = "",
+    competences = [],
+    modules = [],
+    formateur = {},
+    status = "draft",
+  } = req.body ?? {};
+
+  if (!titre || !categorie) {
+    return res.status(400).json({ error: "Titre et categorie requis." });
+  }
+
+  const formation = await prisma.formation.create({
+    data: {
+      slug: slug || createSlug(titre),
+      titre,
+      categorie,
+      sousTitre: sousTitre || null,
+      description: description || null,
+      prix: prix || null,
+      duree: duree || null,
+      niveau: niveau || null,
+      lieu: lieu || null,
+      debut: debut || null,
+      fin: fin || null,
+      placesRestantes: Number(placesRestantes) || 0,
+      joursClotureInscription: Number(joursClotureInscription) || 0,
+      img: img || null,
+      competences,
+      modules,
+      formateurNom: formateur?.nom || null,
+      formateurTitre: formateur?.titre || null,
+      formateurBio: formateur?.bio || null,
+      formateurPhoto: formateur?.photo || null,
+      status: String(status).toUpperCase(),
+    },
+  });
+
+  res.status(201).json(mapFormation(formation));
+}));
+
+app.patch("/api/formations/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const {
+    slug,
+    titre,
+    categorie,
+    sousTitre,
+    description,
+    prix,
+    duree,
+    niveau,
+    lieu,
+    debut,
+    fin,
+    placesRestantes,
+    joursClotureInscription,
+    img,
+    competences,
+    modules,
+    formateur,
+    status,
+  } = req.body ?? {};
+
+  const formation = await prisma.formation.update({
+    where: { id },
+    data: {
+      ...(slug ? { slug } : {}),
+      ...(titre ? { titre } : {}),
+      ...(categorie ? { categorie } : {}),
+      ...(sousTitre !== undefined ? { sousTitre: sousTitre || null } : {}),
+      ...(description !== undefined ? { description: description || null } : {}),
+      ...(prix !== undefined ? { prix: prix || null } : {}),
+      ...(duree !== undefined ? { duree: duree || null } : {}),
+      ...(niveau !== undefined ? { niveau: niveau || null } : {}),
+      ...(lieu !== undefined ? { lieu: lieu || null } : {}),
+      ...(debut !== undefined ? { debut: debut || null } : {}),
+      ...(fin !== undefined ? { fin: fin || null } : {}),
+      ...(placesRestantes !== undefined ? { placesRestantes: Number(placesRestantes) || 0 } : {}),
+      ...(joursClotureInscription !== undefined ? { joursClotureInscription: Number(joursClotureInscription) || 0 } : {}),
+      ...(img !== undefined ? { img: img || null } : {}),
+      ...(competences !== undefined ? { competences } : {}),
+      ...(modules !== undefined ? { modules } : {}),
+      ...(formateur?.nom !== undefined ? { formateurNom: formateur.nom || null } : {}),
+      ...(formateur?.titre !== undefined ? { formateurTitre: formateur.titre || null } : {}),
+      ...(formateur?.bio !== undefined ? { formateurBio: formateur.bio || null } : {}),
+      ...(formateur?.photo !== undefined ? { formateurPhoto: formateur.photo || null } : {}),
+      ...(status ? { status: String(status).toUpperCase() } : {}),
+    },
+  });
+
+  res.json(mapFormation(formation));
+}));
+
+app.delete("/api/formations/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  await prisma.formation.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+}));
+
+app.get("/api/messages", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  const messages = await prisma.contactMessage.findMany({ orderBy: { updatedAt: "desc" } });
+  res.json(messages.map(mapContactMessage));
+}));
+
+app.post("/api/messages", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { name, email, subject, message, status = "NEW", assignedTo = "" } = req.body ?? {};
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ error: "Champs de message requis." });
+  }
+
+  const created = await prisma.contactMessage.create({
+    data: {
+      name,
+      email,
+      subject,
+      message,
+      status,
+      assignedTo: assignedTo || null,
+    },
+  });
+
+  res.status(201).json(mapContactMessage(created));
+}));
+
+app.patch("/api/messages/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, email, subject, message, status, assignedTo } = req.body ?? {};
+
+  const updated = await prisma.contactMessage.update({
+    where: { id },
+    data: {
+      ...(name ? { name } : {}),
+      ...(email ? { email } : {}),
+      ...(subject ? { subject } : {}),
+      ...(message !== undefined ? { message } : {}),
+      ...(status ? { status } : {}),
+      ...(assignedTo !== undefined ? { assignedTo: assignedTo || null } : {}),
+    },
+  });
+
+  res.json(mapContactMessage(updated));
+}));
+
+app.delete("/api/messages/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  await prisma.contactMessage.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+}));
+
+app.get("/api/equipment", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  const items = await prisma.equipment.findMany({ orderBy: { updatedAt: "desc" } });
+  res.json(items.map(mapEquipment));
+}));
+
+app.post("/api/equipment", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { name, category = "", status = "AVAILABLE", description = "", location = "", image = "" } = req.body ?? {};
+  if (!name) {
+    return res.status(400).json({ error: "Nom de l'equipement requis." });
+  }
+
+  const created = await prisma.equipment.create({
+    data: {
+      name,
+      category: category || null,
+      status,
+      description: description || null,
+      location: location || null,
+      image: image || null,
+    },
+  });
+
+  res.status(201).json(mapEquipment(created));
+}));
+
+app.patch("/api/equipment/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, category, status, description, location, image } = req.body ?? {};
+
+  const updated = await prisma.equipment.update({
+    where: { id },
+    data: {
+      ...(name ? { name } : {}),
+      ...(category !== undefined ? { category: category || null } : {}),
+      ...(status ? { status } : {}),
+      ...(description !== undefined ? { description: description || null } : {}),
+      ...(location !== undefined ? { location: location || null } : {}),
+      ...(image !== undefined ? { image: image || null } : {}),
+    },
+  });
+
+  res.json(mapEquipment(updated));
+}));
+
+app.delete("/api/equipment/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  await prisma.equipment.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+}));
+
 app.get("/api/webtv/current", asyncHandler(async (_req, res) => {
   const live = await prisma.live.findFirst({ where: { status: "LIVE" }, orderBy: { updatedAt: "desc" } });
   const programme = await prisma.programmeItem.findMany({ orderBy: [{ date: "desc" }, { heure: "asc" }] });
@@ -751,14 +1140,13 @@ const PORT = process.env.PORT || 4000;
 
 (async () => {
   try {
+    await prisma.$connect();
     await seedDatabase();
     server.listen(PORT, () => {
       console.log(`Backend listening on http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error("Backend startup failed:", error);
-    server.listen(PORT, () => {
-      console.log(`Backend listening on http://localhost:${PORT} (without seed)`);
-    });
+    process.exit(1);
   }
 })();

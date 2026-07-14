@@ -27,7 +27,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   return (
     <PrivateRoute>
-      <div className="admin-light min-h-screen text-stone-900">
+      <div className="min-h-screen bg-slate-50 text-stone-900">
         <AdminSidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
@@ -41,7 +41,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             isCollapsed={isCollapsed}
             toggleCollapse={() => setIsCollapsed((value) => !value)}
           />
-          <main className="px-4 pb-12 pt-5 lg:px-8 lg:pt-6 space-y-5">
+          <main className="admin-light px-4 pb-12 pt-5 space-y-5 lg:px-8 lg:pt-6">
             {children}
           </main>
         </div>
