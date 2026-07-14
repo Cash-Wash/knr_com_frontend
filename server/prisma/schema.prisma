@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  PRESENTER
+  USER
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum LiveStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+enum ReunionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  ENDED
+}
+
+enum ProgrammeStatus {
+  SCHEDULED
+  CURRENT
+  PAST
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(USER)
+  active    Boolean  @default(true)
+  phone     String?
+  bio       String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  emissions Emission[]
+  articles   BlogArticle[]
+  reunions   Reunion[]
+  lives      Live[]
+
+  @@map("users")
+}
+
+model Live {
+  id         String     @id @default(cuid())
+  titre      String
+  youtubeUrl String
+  youtubeId  String?
+  status     LiveStatus @default(SCHEDULED)
+  viewers    Int        @default(0)
+  programme  String?
+  startedAt  DateTime?
+  endedAt    DateTime?
+  createdBy  String?
+  creator    User?      @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@map("lives")
+}
+
+model Emission {
+  id          String        @id @default(cuid())
+  titre       String
+  slug        String        @unique
+  description String?       @db.LongText
+  thumbnail   String?
+  youtubeUrl  String?
+  views       Int           @default(0)
+  status      ContentStatus @default(DRAFT)
+  publishedAt DateTime?
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("emissions")
+}
+
+model BlogArticle {
+  id          String        @id @default(cuid())
+  titre       String
+  slug        String        @unique
+  content     String        @db.LongText
+  thumbnail   String?
+  category    String?
+  status      ContentStatus @default(DRAFT)
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("blog_articles")
+}
+
+model ProgrammeItem {
+  id          String          @id @default(cuid())
+  heure       String
+  titre       String
+  description String?         @db.LongText
+  statut      ProgrammeStatus @default(SCHEDULED)
+  date        DateTime        @default(now())
+  createdBy   String?
+  creator     User?           @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("programme_items")
+}
+
+model Reunion {
+  id           String        @id @default(cuid())
+  titre        String
+  description  String?       @db.LongText
+  scheduledAt  DateTime
+  hostId       String
+  host         User          @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  status       ReunionStatus @default(SCHEDULED)
+  participants Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("reunions")
+}
+
+model Formation {
+  id                      String        @id @default(cuid())
+  slug                    String        @unique
+  titre                   String
+  categorie               String
+  sousTitre               String?
+  description             String?       @db.LongText
+  prix                    String?
+  duree                   String?
+  niveau                  String?
+  lieu                    String?
+  debut                   String?
+  fin                     String?
+  placesRestantes         Int           @default(0)
+  joursClotureInscription Int           @default(0)
+  img                     String?
+  competences             Json?
+  modules                 Json?
+  formateurNom            String?
+  formateurTitre          String?
+  formateurBio            String?       @db.LongText
+  formateurPhoto          String?
+  status                  ContentStatus @default(DRAFT)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  @@map("formations")
+}
+
+model ContactMessage {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  subject     String
+  message     String   @db.LongText
+  status      String   @default("NEW")
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("contact_messages")
+}
+
+model Equipment {
+  id          String   @id @default(cuid())
+  name        String
+  category    String?
+  status      String   @default("AVAILABLE")
+  description String?  @db.LongText
+  location    String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("equipment")
+}
