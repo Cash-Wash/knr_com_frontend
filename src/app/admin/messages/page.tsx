@@ -138,20 +138,7 @@ export default function AdminMessagesPage() {
         ) : null}
       </section>
 
-      <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-        <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-700">
-          <ShieldCheck className="h-4 w-4" />
-          Flux de traitement
-        </div>
-        <h2 className="mt-4 text-2xl font-bold text-slate-900">Simplifiez le suivi des messages entrants.</h2>
-        <p className="mt-2 text-sm leading-7 text-slate-600">
-          Ajoutez plus tard les actions de reponse, assignation et archivage si vous souhaitez industrialiser le support.
-        </p>
-        <Link href="/admin/users" className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-sky-500 px-4 py-3 font-semibold text-white">
-          Assigner un contact
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </section>
+     
     </div>
   );
 }
