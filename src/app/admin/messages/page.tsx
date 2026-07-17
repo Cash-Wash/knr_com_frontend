@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Inbox, MessageSquare, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Inbox, MessageSquare, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { getApiBase, authHeaders } from "@/lib/api";
 
 type ContactMessage = {
   id: string;
@@ -20,24 +21,40 @@ export default function AdminMessagesPage() {
   useEffect(() => {
     const loadMessages = async () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-        const response = await fetch(`${apiBase}/api/messages`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
+        const response = await fetch(`${getApiBase()}/api/messages`, { headers: authHeaders() });
+        if (!response.ok) return;
         const payload = await response.json();
         setMessages(Array.isArray(payload) ? payload : []);
       } catch {
         setMessages([]);
       }
     };
-
     loadMessages();
   }, []);
+
+  const markTreated = async (id: string) => {
+    try {
+      const response = await fetch(`${getApiBase()}/api/messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ status: "TRAITE" }),
+      });
+      if (!response.ok) return;
+      const updated = await response.json();
+      setMessages((current) => current.map((m) => (m.id === id ? updated : m)));
+    } catch {
+      // ignore, list stays as-is
+    }
+  };
+
+  const removeMessage = async (id: string) => {
+    try {
+      await fetch(`${getApiBase()}/api/messages/${id}`, { method: "DELETE", headers: authHeaders() });
+    } catch {
+      // fallback below
+    }
+    setMessages((current) => current.filter((m) => m.id !== id));
+  };
 
   return (
     <div className="space-y-6 text-slate-900">
@@ -75,7 +92,15 @@ export default function AdminMessagesPage() {
                     {item.name} - {item.email}
                   </p>
                 </div>
-                <span className="rounded-full bg-sky-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
+                <span
+                  className={`rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${
+                    item.status === "TRAITE"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : item.status === "IN_PROGRESS"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-sky-50 text-sky-700"
+                  }`}
+                >
                   {item.status}
                 </span>
               </div>
@@ -84,10 +109,23 @@ export default function AdminMessagesPage() {
                 <p className="text-xs text-slate-500">
                   Assigne a: <span className="font-semibold text-slate-900">{item.assignedTo || "Non assigne"}</span>
                 </p>
-                <button className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900">
-                  Traiter
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {item.status !== "TRAITE" ? (
+                    <button
+                      onClick={() => markTreated(item.id)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+                    >
+                      Traiter
+                      <CheckCircle2 className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={() => removeMessage(item.id)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </article>
           ))}

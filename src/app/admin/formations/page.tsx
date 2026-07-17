@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
-  Plus, Pencil, Trash2, ChevronDown, Search,
-  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight, AlertTriangle, Users,
+  Plus, Pencil, Trash2, ChevronDown, Search, X,
+  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight, AlertTriangle, Users, UserCheck, GraduationCap, User,
 } from "lucide-react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminNavbar from "@/components/admin/AdminNavbar";
@@ -15,6 +15,80 @@ import ConfirmDeleteModal from "@/components/admin/ui/ConfirmDeleteModal";
 import ToastStack from "@/components/admin/ui/Toast";
 import { useToast } from "@/hooks/useToast";
 import { formations as INITIAL_FORMATIONS, type Formation } from "@/lib/formations-data";
+import { getApiBase, authHeaders, resolveMediaUrl } from "@/lib/api";
+
+type AdminFormation = Formation & { id?: string };
+
+type Participant = { id: string; name: string; email: string; message: string; createdAt?: string };
+
+function fromApi(item: {
+  id: string;
+  slug: string;
+  titre: string;
+  categorie: string;
+  sousTitre?: string;
+  description?: string;
+  prix?: string;
+  duree?: string;
+  niveau?: string;
+  lieu?: string;
+  debut?: string;
+  fin?: string;
+  placesRestantes: number;
+  clotureInscriptions?: string | null;
+  img?: string;
+  competences?: string[];
+  modules?: { numero: number; label: string; titre: string; desc: string }[];
+  formateur?: { nom: string; titre: string; bio: string; photo: string };
+}): AdminFormation {
+  return {
+    id: item.id,
+    slug: item.slug,
+    titre: item.titre,
+    categorie: item.categorie,
+    sousTitre: item.sousTitre ?? "",
+    description: item.description ?? "",
+    prix: item.prix ?? "",
+    duree: item.duree ?? "",
+    niveau: item.niveau ?? "",
+    lieu: item.lieu ?? "",
+    debut: item.debut ?? "",
+    fin: item.fin ?? "",
+    placesRestantes: item.placesRestantes ?? 0,
+    joursClotureInscription: 0,
+    clotureInscriptions: item.clotureInscriptions ?? "",
+    img: item.img ?? "",
+    competences: Array.isArray(item.competences) ? item.competences : [],
+    modules: Array.isArray(item.modules) ? item.modules : [],
+    formateur: {
+      nom: item.formateur?.nom ?? "",
+      titre: item.formateur?.titre ?? "",
+      bio: item.formateur?.bio ?? "",
+      photo: item.formateur?.photo ?? "",
+    },
+  };
+}
+
+function toApiPayload(data: AdminFormation) {
+  return {
+    titre: data.titre,
+    categorie: data.categorie,
+    sousTitre: data.sousTitre,
+    description: data.description,
+    prix: data.prix,
+    duree: data.duree,
+    niveau: data.niveau,
+    lieu: data.lieu,
+    debut: data.debut,
+    fin: data.fin,
+    placesRestantes: data.placesRestantes,
+    clotureInscriptions: data.clotureInscriptions || null,
+    img: data.img,
+    competences: data.competences,
+    modules: data.modules,
+    formateur: data.formateur,
+  };
+}
 
 // ─── SIDEBAR COLLAPSE PREFERENCE (persisted, hydration-safe) ─────────────────
 const SIDEBAR_COLLAPSE_KEY = "knr-admin-sidebar-collapsed";
@@ -63,23 +137,67 @@ export default function AdminFormationsPage() {
 
   const toggleSidebarCollapse = () => setSidebarCollapsedPreference(!isSidebarCollapsed);
 
-  const [formations, setFormations] = useState<Formation[]>(INITIAL_FORMATIONS);
+  const [formations, setFormations] = useState<AdminFormation[]>(INITIAL_FORMATIONS);
   const [categories, setCategories] = useState<FormationCategory[]>(() => buildInitialCategories(INITIAL_FORMATIONS));
-  const [loadingData] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
   const [isFormationModalOpen, setIsFormationModalOpen] = useState(false);
-  const [formationToEdit, setFormationToEdit] = useState<Formation | null>(null);
+  const [formationToEdit, setFormationToEdit] = useState<AdminFormation | null>(null);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-  const [formationToDelete, setFormationToDelete] = useState<Formation | null>(null);
+  const [formationToDelete, setFormationToDelete] = useState<AdminFormation | null>(null);
   const [deletingFormation, setDeletingFormation] = useState(false);
   const [catToDelete, setCatToDelete] = useState<FormationCategory | null>(null);
   const [deletingCat, setDeletingCat] = useState(false);
+  const [participantsFor, setParticipantsFor] = useState<AdminFormation | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
 
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [page, setPage] = useState(1);
 
   const { toasts, add: addToast, dismiss } = useToast();
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/formations`, { headers: authHeaders() });
+        if (response.ok) {
+          const payload = await response.json();
+          if (Array.isArray(payload)) {
+            const mapped = payload.map(fromApi);
+            setFormations(mapped);
+            setCategories(buildInitialCategories(mapped));
+          }
+        }
+      } catch {
+        // keep static seed data
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    load();
+  }, []);
+
+  const openParticipants = async (formation: AdminFormation) => {
+    if (!formation.id) return;
+    setParticipantsFor(formation);
+    setLoadingParticipants(true);
+    try {
+      const response = await fetch(
+        `${getApiBase()}/api/messages?context=formation&contextId=${formation.id}`,
+        { headers: authHeaders() }
+      );
+      if (response.ok) {
+        const payload = await response.json();
+        if (Array.isArray(payload)) setParticipants(payload);
+      }
+    } catch {
+      setParticipants([]);
+    } finally {
+      setLoadingParticipants(false);
+    }
+  };
 
   const filtered = formations.filter((f) => {
     const q = search.toLowerCase();
@@ -95,7 +213,13 @@ export default function AdminFormationsPage() {
     if (!formationToDelete) return;
     setDeletingFormation(true);
     const tid = addToast("loading", "Suppression…");
-    await new Promise((r) => setTimeout(r, 600));
+    if (formationToDelete.id) {
+      try {
+        await fetch(`${getApiBase()}/api/formations/${formationToDelete.id}`, { method: "DELETE", headers: authHeaders() });
+      } catch {
+        // fallback below still removes it locally
+      }
+    }
     setFormations((prev) => prev.filter((f) => f.slug !== formationToDelete.slug));
     setCategories((prev) => prev.map((c) => c.name === formationToDelete.categorie ? { ...c, count: Math.max(0, c.count - 1) } : c));
     dismiss(tid);
@@ -120,23 +244,38 @@ export default function AdminFormationsPage() {
     setDeletingCat(false);
   };
 
-  const handleSubmitFormation = (data: Formation, originalSlug?: string) => {
+  const handleSubmitFormation = async (data: AdminFormation, originalSlug?: string) => {
+    const previous = originalSlug ? formations.find((f) => f.slug === originalSlug) : undefined;
+    let saved: AdminFormation = data;
+
+    try {
+      const response = await fetch(`${getApiBase()}/api/formations${previous?.id ? `/${previous.id}` : ""}`, {
+        method: previous?.id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(toApiPayload(data)),
+      });
+      if (response.ok) {
+        saved = fromApi(await response.json());
+      }
+    } catch {
+      // fallback below keeps the locally-entered data
+    }
+
     if (originalSlug) {
-      const previous = formations.find((f) => f.slug === originalSlug);
-      setFormations((prev) => prev.map((f) => f.slug === originalSlug ? data : f));
-      if (previous && previous.categorie !== data.categorie) {
+      setFormations((prev) => prev.map((f) => f.slug === originalSlug ? saved : f));
+      if (previous && previous.categorie !== saved.categorie) {
         setCategories((prev) => prev.map((c) => {
           if (c.name === previous.categorie) return { ...c, count: Math.max(0, c.count - 1) };
-          if (c.name === data.categorie) return { ...c, count: c.count + 1 };
+          if (c.name === saved.categorie) return { ...c, count: c.count + 1 };
           return c;
         }));
       }
-      addToast("success", `Formation « ${data.titre} » mise à jour.`);
+      addToast("success", `Formation « ${saved.titre} » mise à jour.`);
       setFormationToEdit(null);
     } else {
-      setFormations((prev) => [data, ...prev]);
-      setCategories((prev) => prev.map((c) => c.name === data.categorie ? { ...c, count: c.count + 1 } : c));
-      addToast("success", `Formation « ${data.titre} » créée.`);
+      setFormations((prev) => [saved, ...prev]);
+      setCategories((prev) => prev.map((c) => c.name === saved.categorie ? { ...c, count: c.count + 1 } : c));
+      addToast("success", `Formation « ${saved.titre} » créée.`);
     }
   };
 
@@ -242,11 +381,39 @@ export default function AdminFormationsPage() {
                     const lowPlaces = formation.placesRestantes <= 5;
                     return (
                       <tr key={formation.slug} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3.5 sm:px-5 max-w-[240px]">
-                          <p className="font-semibold text-stone-800 line-clamp-1">{formation.titre}</p>
-                          <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{formation.slug}</p>
+                        <td className="px-4 py-3.5 sm:px-5 max-w-[260px]">
+                          <div className="flex items-center gap-3">
+                            <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-stone-100 bg-stone-50">
+                              {formation.img ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={resolveMediaUrl(formation.img)} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-stone-300">
+                                  <GraduationCap size={16} />
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-stone-800 line-clamp-1">{formation.titre}</p>
+                              <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{formation.slug}</p>
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap">{formation.formateur.nom}</td>
+                        <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-stone-100 bg-stone-50">
+                              {formation.formateur.photo ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={resolveMediaUrl(formation.formateur.photo)} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-stone-300">
+                                  <User size={12} />
+                                </div>
+                              )}
+                            </div>
+                            {formation.formateur.nom}
+                          </div>
+                        </td>
                         <td className="px-4 py-3.5 sm:px-5">
                           <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
                             style={{ background: cs.bg, color: cs.text, border: `1px solid ${cs.border}` }}>
@@ -266,6 +433,10 @@ export default function AdminFormationsPage() {
                         </td>
                         <td className="px-4 py-3.5 sm:px-5">
                           <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => openParticipants(formation)}
+                              className="rounded-lg p-2 text-stone-400 hover:bg-emerald-50 hover:text-emerald-500 transition cursor-pointer" title="Participants inscrits">
+                              <UserCheck size={14} />
+                            </button>
                             <button onClick={() => { setFormationToEdit(formation); setIsFormationModalOpen(true); }}
                               className="rounded-lg p-2 text-stone-400 hover:bg-sky-50 hover:text-sky-500 transition cursor-pointer" title="Modifier">
                               <Pencil size={14} />
@@ -413,6 +584,39 @@ export default function AdminFormationsPage() {
         title="Supprimer la catégorie ?"
         message={catToDelete ? <span>Supprimer <strong>« {catToDelete.name} »</strong> ?</span> : ""}
       />
+
+      {participantsFor ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <p className="text-xs text-stone-500">Participants inscrits</p>
+                <h3 className="text-lg font-bold text-stone-900">{participantsFor.titre}</h3>
+              </div>
+              <button onClick={() => setParticipantsFor(null)} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {loadingParticipants ? (
+                <div className="py-8 text-center text-stone-400"><Loader2 size={18} className="animate-spin mx-auto" /></div>
+              ) : participants.length === 0 ? (
+                <p className="py-8 text-center text-sm text-stone-400 italic">
+                  Aucune demande d&apos;inscription reçue via le formulaire de contact pour le moment.
+                </p>
+              ) : (
+                participants.map((p) => (
+                  <div key={p.id} className="rounded-xl border border-stone-100 bg-stone-50 p-3">
+                    <p className="text-sm font-semibold text-stone-800">{p.name}</p>
+                    <p className="text-xs text-stone-500">{p.email}</p>
+                    <p className="mt-1.5 text-xs text-stone-600">{p.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

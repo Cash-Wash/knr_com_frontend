@@ -15,11 +15,13 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import VideoPlayer from "@/components/VideoPlayer";
 import { getYoutubeEmbedUrl } from "@/lib/admin-demo-data";
+import { getApiBase, resolveMediaUrl } from "@/lib/api";
+import { getSocket } from "@/lib/socket";
 
 type Live = {
   id: string;
   titre: string;
-  youtubeUrl: string;
+  youtubeUrl?: string | null;
   youtubeId?: string;
   status: string;
   viewers: number;
@@ -80,8 +82,7 @@ export default function WebTVPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${base}/api/webtv/current`);
+        const response = await fetch(`${getApiBase()}/api/webtv/current`);
 
         if (!response.ok) {
           throw new Error("Impossible de charger la WebTV.");
@@ -94,13 +95,33 @@ export default function WebTVPage() {
           emissions: Array.isArray(data.emissions) ? data.emissions : [],
         });
       } catch {
-        setPayload({ live: null, programme: [], emissions: [] });
+        setPayload((current) => (current.live ? current : { live: null, programme: [], emissions: [] }));
       } finally {
         setLoading(false);
       }
     };
 
     load();
+
+    // Filet de sécurité si le socket temps réel est coupé
+    const pollInterval = setInterval(load, 45000);
+
+    const socket = getSocket();
+    const applyLive = (live: Live | null) => setPayload((current) => ({ ...current, live }));
+    const onLiveStarted = (live: Live) => applyLive(live);
+    const onLiveStopped = () => applyLive(null);
+    const onYoutubeReady = (live: Live) => applyLive(live);
+
+    socket.on("live:started", onLiveStarted);
+    socket.on("live:stopped", onLiveStopped);
+    socket.on("live:youtube_ready", onYoutubeReady);
+
+    return () => {
+      clearInterval(pollInterval);
+      socket.off("live:started", onLiveStarted);
+      socket.off("live:stopped", onLiveStopped);
+      socket.off("live:youtube_ready", onYoutubeReady);
+    };
   }, []);
 
   const liveEmbedUrl = useMemo(() => {
@@ -202,6 +223,33 @@ export default function WebTVPage() {
                       />
                     </div>
 
+                    <div className="bg-neutral-900 rounded-2xl p-4 sm:p-5">
+                      <h2 className="text-white text-lg sm:text-xl font-bold font-['Poppins'] mb-1">
+                        {payload.live.titre}
+                      </h2>
+                      <p className="text-gray-400 text-sm font-['Inter']">
+                        {payload.live.programme || "Diffusion en direct"}
+                      </p>
+                    </div>
+                  </>
+                ) : payload.live ? (
+                  <>
+                    {/* En direct mais l'ID YouTube n'est pas encore détecté */}
+                    <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl flex items-center justify-center">
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-sky-400 z-10" />
+                      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-red-500 rounded-lg">
+                        <LiveBadge />
+                      </div>
+                      <div className="flex flex-col items-center gap-3 text-center px-6">
+                        <div className="h-10 w-10 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+                        <p className="text-white text-lg font-bold font-['Poppins']">
+                          Préparation du flux YouTube…
+                        </p>
+                        <p className="text-gray-400 text-sm font-['Inter']">
+                          La diffusion a démarré, la vidéo apparaît automatiquement dans quelques instants.
+                        </p>
+                      </div>
+                    </div>
                     <div className="bg-neutral-900 rounded-2xl p-4 sm:p-5">
                       <h2 className="text-white text-lg sm:text-xl font-bold font-['Poppins'] mb-1">
                         {payload.live.titre}
@@ -338,8 +386,7 @@ export default function WebTVPage() {
               <h2 className="text-white text-xl sm:text-2xl md:text-3xl font-bold font-['Poppins']">
                 Émissions récentes
               </h2>
-              <a
-                href="/emissions"
+              <a href="/emissions"
                 className="flex items-center gap-1.5 text-sky-400 text-sm font-medium font-['Poppins'] hover:gap-2.5 transition-all"
               >
                 Tout voir
@@ -359,7 +406,7 @@ export default function WebTVPage() {
                     <div className="relative rounded-xl overflow-hidden aspect-video mb-3 bg-neutral-900">
                       {emission.thumbnail ? (
                         <Image
-                          src={emission.thumbnail}
+                          src={resolveMediaUrl(emission.thumbnail)}
                           alt={emission.titre}
                           fill
                           className="object-cover group-hover:scale-105 transition-transform duration-500"

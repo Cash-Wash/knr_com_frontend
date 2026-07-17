@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CalendarClock,
   CirclePlay,
   Eye,
@@ -11,8 +12,12 @@ import {
   Radio,
   Square,
   Trash2,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { AdminLive, adminSeedLives, getYoutubeEmbedUrl, formatDateTime } from "@/lib/admin-demo-data";
+import { getApiBase, authHeaders } from "@/lib/api";
+import { getSocket } from "@/lib/socket";
 
 const emptyLive = {
   titre: "",
@@ -26,20 +31,25 @@ export default function AdminLivesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyLive);
+  const [agentOnline, setAgentOnline] = useState<boolean | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const activeLive = useMemo(() => lives.find((live) => live.status === "live") ?? null, [lives]);
+
+  const mergeLive = (updated: AdminLive) => {
+    setLives((current) =>
+      current.some((live) => live.id === updated.id)
+        ? current.map((live) => (live.id === updated.id ? updated : live))
+        : current
+    );
+  };
 
   useEffect(() => {
     const loadLives = async () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-        const response = await fetch(`${apiBase}/api/lives`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
-        });
-
-        if (!response.ok) {
-          return;
-        }
+        const response = await fetch(`${getApiBase()}/api/lives`, { headers: authHeaders() });
+        if (!response.ok) return;
 
         const payload = await response.json();
         if (Array.isArray(payload) && payload.length > 0) {
@@ -50,7 +60,41 @@ export default function AdminLivesPage() {
       }
     };
 
+    const loadAgentStatus = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/agent/status`, { headers: authHeaders() });
+        if (!response.ok) return;
+        const status = await response.json();
+        setAgentOnline(!!status.online);
+      } catch {
+        setAgentOnline(null);
+      }
+    };
+
     loadLives();
+    loadAgentStatus();
+
+    const socket = getSocket();
+    const onAgentStatus = (payload: { online: boolean }) => setAgentOnline(payload.online);
+    const onLiveStarted = (live: AdminLive) => mergeLive(live);
+    const onLiveStopped = (live: AdminLive) => mergeLive(live);
+    const onYoutubeReady = (live: AdminLive) => mergeLive(live);
+    const onYoutubePending = () =>
+      setNotice("Détection automatique de la vidéo YouTube en échec — renseignez l'URL manuellement si besoin.");
+
+    socket.on("agent:status", onAgentStatus);
+    socket.on("live:started", onLiveStarted);
+    socket.on("live:stopped", onLiveStopped);
+    socket.on("live:youtube_ready", onYoutubeReady);
+    socket.on("live:youtube_pending", onYoutubePending);
+
+    return () => {
+      socket.off("agent:status", onAgentStatus);
+      socket.off("live:started", onLiveStarted);
+      socket.off("live:stopped", onLiveStopped);
+      socket.off("live:youtube_ready", onYoutubeReady);
+      socket.off("live:youtube_pending", onYoutubePending);
+    };
   }, []);
 
   const startNewLive = () => {
@@ -63,7 +107,7 @@ export default function AdminLivesPage() {
     setEditingId(live.id);
     setForm({
       titre: live.titre,
-      youtubeUrl: live.youtubeUrl,
+      youtubeUrl: live.youtubeUrl ?? "",
       youtubeId: live.youtubeId ?? "",
       programme: live.programme,
     });
@@ -72,12 +116,11 @@ export default function AdminLivesPage() {
 
   const saveLive = async () => {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${apiBase}/api/lives${editingId ? `/${editingId}` : ""}`, {
+      const response = await fetch(`${getApiBase()}/api/lives${editingId ? `/${editingId}` : ""}`, {
         method: editingId ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+          ...authHeaders(),
         },
         body: JSON.stringify({
           titre: form.titre,
@@ -122,19 +165,26 @@ export default function AdminLivesPage() {
   };
 
   const setLiveStatus = async (id: string, status: AdminLive["status"]) => {
+    setActionError(null);
+    setNotice(null);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
       const endpoint = status === "live" ? "start" : "stop";
-      const response = await fetch(`${apiBase}/api/lives/${id}/${endpoint}`, {
+      const response = await fetch(`${getApiBase()}/api/lives/${id}/${endpoint}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
+        headers: authHeaders(),
       });
 
+      const payload = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error("status update failed");
+        setActionError(payload?.error || "La mise à jour du live a échoué.");
+        return;
       }
 
-      const payload = await response.json();
+      if (payload.warning) {
+        setNotice(payload.warning);
+      }
+
       setLives((current) =>
         current.map((live) =>
           live.id === id
@@ -144,29 +194,16 @@ export default function AdminLivesPage() {
               : live
         )
       );
-      return;
     } catch {
-      setLives((current) =>
-        current.map((live) =>
-          live.id === id
-            ? {
-                ...live,
-                status,
-                startedAt: status === "live" ? new Date().toISOString() : live.startedAt,
-                endedAt: status === "ended" ? new Date().toISOString() : live.endedAt,
-              }
-            : live
-        )
-      );
+      setActionError("Impossible de contacter le serveur. Réessayez.");
     }
   };
 
   const removeLive = async (id: string) => {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      await fetch(`${apiBase}/api/lives/${id}`, {
+      await fetch(`${getApiBase()}/api/lives/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
+        headers: authHeaders(),
       });
     } catch {
       // fallback below
@@ -180,16 +217,41 @@ export default function AdminLivesPage() {
       <section className="rounded-[32px] border border-slate-200 bg-white p-6 sm:p-8 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-              <Radio className="h-4 w-4" />
-              Gestion du live et de la diffusion automatique YouTube
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                <Radio className="h-4 w-4" />
+                Diffusion pilotée par l&apos;Agent OBS
+              </div>
+              {agentOnline === true ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+                  <Wifi className="h-4 w-4" />
+                  Agent OBS connecté
+                </div>
+              ) : agentOnline === false ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+                  <WifiOff className="h-4 w-4" />
+                  Agent OBS hors ligne
+                </div>
+              ) : null}
             </div>
             <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
               Demarrer un live se fait ici, pas sur la page publique.
             </h1>
             <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-              Prevoyez la source YouTube, activez le direct, puis laissez la WebTV afficher automatiquement le flux sur le site.
+              Cliquer sur &quot;Démarrer&quot; déclenche réellement la diffusion OBS sur le PC de streaming. L&apos;ID YouTube est détecté automatiquement et la WebTV s&apos;actualise seule.
             </p>
+            {actionError ? (
+              <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {actionError}
+              </div>
+            ) : null}
+            {notice ? (
+              <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {notice}
+              </div>
+            ) : null}
           </div>
           <button
             onClick={startNewLive}
@@ -255,10 +317,10 @@ export default function AdminLivesPage() {
             <CalendarClock className="h-5 w-5 text-sky-500" />
           </div>
           <div className="mt-5 space-y-3 text-sm leading-7 text-slate-600">
-            <p>1. Renseignez l&apos;URL YouTube ou l&apos;ID de la video.</p>
-            <p>2. Passez le live en statut &quot;live&quot; pour le rendre visible sur WebTV.</p>
-            <p>3. Marquez-le comme termine quand la diffusion s&apos;arrete.</p>
-            <p>4. Le programme du jour reste editable depuis l&apos;onglet Programme.</p>
+            <p>1. Assurez-vous que l&apos;Agent OBS est connecté (pastille verte ci-dessus).</p>
+            <p>2. Cliquez &quot;Démarrer&quot; : OBS lance réellement la diffusion vers Restream.</p>
+            <p>3. L&apos;ID YouTube est détecté automatiquement ; la WebTV s&apos;actualise seule.</p>
+            <p>4. Cliquez &quot;Arrêter&quot; pour couper la diffusion depuis la plateforme.</p>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -266,7 +328,8 @@ export default function AdminLivesPage() {
               <>
                 <button
                   onClick={() => setLiveStatus(activeLive.id, "live")}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-red-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-600"
+                  disabled={agentOnline === false}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-red-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Radio className="h-4 w-4" />
                   En direct
@@ -338,7 +401,9 @@ export default function AdminLivesPage() {
                 </button>
                 <button
                   onClick={() => setLiveStatus(live.id, "live")}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-red-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-600"
+                  disabled={agentOnline === false}
+                  title={agentOnline === false ? "Agent OBS hors ligne : impossible de démarrer." : undefined}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-red-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Radio className="h-4 w-4" />
                   Demarrer
@@ -388,10 +453,13 @@ export default function AdminLivesPage() {
                 placeholder="Titre du live"
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
               />
+              <p className="text-xs text-slate-500 -mb-2">
+                Substitution manuelle (optionnel) — laissez vide pour laisser l&apos;Agent OBS + la détection automatique YouTube s&apos;en charger.
+              </p>
               <input
                 value={form.youtubeUrl}
                 onChange={(event) => setForm((current) => ({ ...current, youtubeUrl: event.target.value }))}
-                placeholder="URL YouTube"
+                placeholder="URL YouTube (facultatif)"
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
               />
               <input

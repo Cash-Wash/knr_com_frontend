@@ -1,10 +1,12 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Image from "next/image";
 import { motion, AnimatePresence, type MotionProps } from "framer-motion";
+import TeamSection from "@/components/TeamSection";
+import { getApiBase, resolveMediaUrl } from "@/lib/api";
 
 type MotionDivProps = MotionProps & { className?: string; style?: React.CSSProperties };
 import {
@@ -28,7 +30,39 @@ const fadeIn = (delay = 0): MotionDivProps => ({
 });
 
 // ─── HERO ────────────────────────────────────────────────────────────────────
+type HeroEntrepreneur = { id: string; name: string; photo?: string };
+type HeroEmission = { slug: string; titre: string; sousTitre?: string; thumbnail?: string; featured: boolean };
+
 function HeroSection() {
+  const [entrepreneurs, setEntrepreneurs] = useState<HeroEntrepreneur[]>([]);
+  const [featuredEmission, setFeaturedEmission] = useState<HeroEmission | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const base = getApiBase();
+        const [entrepreneursRes, emissionsRes] = await Promise.all([
+          fetch(`${base}/api/public/entrepreneurs`),
+          fetch(`${base}/api/public/emissions`),
+        ]);
+        if (entrepreneursRes.ok) {
+          const list = await entrepreneursRes.json();
+          if (Array.isArray(list)) setEntrepreneurs(list);
+        }
+        if (emissionsRes.ok) {
+          const list: HeroEmission[] = await emissionsRes.json();
+          if (Array.isArray(list)) setFeaturedEmission(list.find((e) => e.featured) ?? list[0] ?? null);
+        }
+      } catch {
+        // keep static fallback below
+      }
+    };
+    load();
+  }, []);
+
+  const avatarFallbacks = ["/images/circle1.png", "/images/circle2.jpg", "/images/circle3.jpg", "/images/circle4.jpg"];
+  const avatars = entrepreneurs.length > 0 ? entrepreneurs.slice(0, 4).map((e) => e.photo || avatarFallbacks[0]) : avatarFallbacks;
+
   return (
     <section className="relative w-full min-h-screen overflow-hidden">
       <div className="absolute inset-0">
@@ -41,17 +75,14 @@ function HeroSection() {
         <motion.div {...fadeUp(0.1)} className="flex flex-col gap-7 w-full md:max-w-[680px]">
           <div className="flex items-center gap-4">
             <div className="flex -space-x-3">
-              {[
-                "/images/circle1.png",
-                "/images/circle2.jpg",
-                "/images/circle3.jpg",
-                "/images/circle4.jpg",
-              ].map((src, i) => (
-                <Image key={i} src={src} alt="" width={56} height={56}
+              {avatars.map((src, i) => (
+                <Image key={i} src={resolveMediaUrl(src)} alt="" width={56} height={56}
                   className="rounded-full border-[3px] border-white w-10 h-10 md:w-14 md:h-14 object-cover" />
               ))}
             </div>
-            <span className="text-white text-sm md:text-base font-normal font-['Poppins']">+25 Entrepreneurs interviewés</span>
+            <span className="text-white text-sm md:text-base font-normal font-['Poppins']">
+              {entrepreneurs.length > 0 ? `+${entrepreneurs.length} Entrepreneurs interviewés` : "+25 Entrepreneurs interviewés"}
+            </span>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -64,12 +95,15 @@ function HeroSection() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <button className="px-7 py-3.5 bg-sky-400 rounded-full border border-white text-white text-sm md:text-base font-semibold font-['Poppins'] hover:bg-sky-500 hover:scale-105 active:scale-95 transition-all cursor-pointer">
+            <Link
+                href="/contact"
+               className="px-7 py-3.5 bg-sky-400 rounded-full border border-white text-white text-sm md:text-base font-semibold font-['Poppins'] hover:bg-sky-500 hover:scale-105 active:scale-95 transition-all cursor-pointer">
+                 
               Collaborer avec nous
-            </button>
-            <button className="h-12 md:h-14 px-7 rounded-full border border-cyan-100 flex items-center gap-2 text-white text-sm md:text-base font-medium font-['Poppins'] hover:bg-white/10 transition-all cursor-pointer">
+              </Link>
+              <Link href="/emissions" className="h-12 md:h-14 px-7 rounded-full border border-cyan-100 flex items-center gap-2 text-white text-sm md:text-base font-medium font-['Poppins'] hover:bg-white/10 transition-all cursor-pointer">
               Voir nos émissions <Play className="w-3.5 h-3.5 fill-white text-white" />
-            </button>
+            </Link>
           </div>
         </motion.div>
 
@@ -82,16 +116,28 @@ function HeroSection() {
             </div>
             <div className="w-full rounded-2xl bg-white overflow-hidden"
               style={{ boxShadow: "0 4px 14px 0 rgba(41,182,232,0.53), 0 0 0 2px rgba(186,230,255,0.8)" }}>
-              <div className="relative m-3 rounded-[10px] overflow-hidden">
-                <Image src="/images/imglecteur.svg" alt="Émission" width={464} height={277} className="w-full object-cover" loading="eager" />
+              <Link href={featuredEmission ? `/emissions/${featuredEmission.slug}` : "/emissions"} className="relative m-3 flex rounded-[10px] overflow-hidden">
+                <Image
+                  src={resolveMediaUrl(featuredEmission?.thumbnail) || "/images/imglecteur.svg"}
+                  alt={featuredEmission?.titre || "Émission"}
+                  width={464} height={277} className="w-full object-cover" loading="eager"
+                />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <button className="flex items-center gap-2 px-5 py-2.5 rounded-3xl border border-neutral-400 hover:scale-105 transition-transform cursor-pointer"
+                  <span className="flex items-center gap-2 px-5 py-2.5 rounded-3xl border border-neutral-400 hover:scale-105 transition-transform cursor-pointer"
                     style={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
                     <Play className="w-4 h-4 fill-white text-white" />
                     <span className="text-white text-sm font-medium font-['Poppins']">Regarder</span>
-                  </button>
+                  </span>
                 </div>
-              </div>
+              </Link>
+              {featuredEmission ? (
+                <div className="px-4 pt-1">
+                  <p className="text-neutral-900 text-sm font-bold font-['Poppins'] truncate">{featuredEmission.titre}</p>
+                  {featuredEmission.sousTitre ? (
+                    <p className="text-neutral-500 text-xs font-['Poppins'] truncate">{featuredEmission.sousTitre}</p>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="px-4 pb-4 pt-1 flex flex-wrap items-center gap-4">
                 <a href="#" className="flex items-center gap-1 text-neutral-600 text-sm font-medium font-['Poppins'] underline hover:text-sky-500 transition-colors">
                   Réserver le studio <ArrowUpRight className="w-3 h-3" />
@@ -201,13 +247,35 @@ function ActivitiesSection() {
 }
 
 // ─── KNR WEB TV ──────────────────────────────────────────────────────────────
-const tvShows = [
-  { title: "Tech Talk", sub: "L'innovation au quotidien", episodes: "11 épisodes", img: "/images/webtv2.png" },
-  { title: "Culture & Création", sub: "L'art sous toutes ses formes", episodes: "11 épisodes", img: "/images/webtv3.png" },
-  { title: "Tech Talk", sub: "L'innovation au quotidien", episodes: "11 épisodes", img: "/images/webtv4.png" },
-];
+type WebTvEmission = {
+  slug: string;
+  titre: string;
+  sousTitre?: string;
+  episodes?: number;
+  thumbnail?: string;
+  featured: boolean;
+};
 
 function WebTVSection() {
+  const [emissions, setEmissions] = useState<WebTvEmission[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/emissions`);
+        if (!response.ok) return;
+        const list = await response.json();
+        if (Array.isArray(list)) setEmissions(list);
+      } catch {
+        setEmissions([]);
+      }
+    };
+    load();
+  }, []);
+
+  const featured = emissions.find((e) => e.featured) ?? emissions[0] ?? null;
+  const others = emissions.filter((e) => e.slug !== featured?.slug).slice(0, 3);
+
   return (
     <section className="relative w-full bg-neutral-950 py-16 overflow-hidden">
       <div className="max-w-[1558px] mx-auto px-5 sm:px-8">
@@ -230,46 +298,56 @@ function WebTVSection() {
         {/* Grid: big left + 3 small right */}
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Featured big */}
-          <motion.div {...fadeUp(0.1)} className="relative w-full lg:w-[60%] rounded-2xl overflow-hidden min-h-[400px] lg:min-h-[500px]">
-            <Image src="/images/webtv1.png" alt="Business Africa" fill className="object-cover" />
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-            {/* Play button */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <button className="w-20 h-20 rounded-full border border-white/30 flex items-center justify-center hover:scale-110 transition-transform cursor-pointer"
-                style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
-                <Play className="w-8 h-8 fill-white text-white ml-1" />
-              </button>
-            </div>
-            {/* Labels */}
-            <div className="absolute bottom-8 left-8 flex flex-col gap-3">
-              <span className="inline-flex px-4 py-1.5 bg-sky-400 rounded-md text-white text-sm font-bold font-['Poppins'] tracking-wide w-fit">
-                À la une
-              </span>
-              <div>
-                <p className="text-white text-2xl md:text-3xl font-bold font-['Poppins']">Business Africa</p>
-                <p className="text-gray-300 text-base md:text-lg font-normal font-['Poppins']">Les leaders qui transforment le continent</p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* 3 small cards */}
-          <div className="flex flex-col gap-4 w-full lg:w-[39%]">
-            {tvShows.map((show, i) => (
-              <motion.div key={show.title + i} {...fadeUp(0.1 + i * 0.1)}
-                className="relative rounded-2xl overflow-hidden h-[148px] sm:h-[155px] lg:h-[155px] group cursor-pointer hover:scale-[1.02] transition-transform">
-                <Image src={show.img} alt={show.title} fill className="object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-black/20" />
-                <div className="absolute inset-0 flex flex-col justify-end p-5">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-white text-lg font-bold font-['Poppins']">{show.title}</p>
-                      <p className="text-gray-300 text-sm font-normal font-['Poppins']">{show.sub}</p>
-                    </div>
-                    <p className="text-sky-400 text-xs font-medium font-['Poppins'] flex-shrink-0 ml-3">{show.episodes}</p>
+          {featured ? (
+            <Link href={`/emissions/${featured.slug}`} className="relative w-full lg:w-[60%] rounded-2xl overflow-hidden min-h-[400px] lg:min-h-[500px] block">
+              <motion.div {...fadeUp(0.1)} className="absolute inset-0">
+                <Image src={resolveMediaUrl(featured.thumbnail) || "/images/webtv1.png"} alt={featured.titre} fill className="object-cover" />
+                {/* Gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                {/* Play button */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="w-20 h-20 rounded-full border border-white/30 flex items-center justify-center hover:scale-110 transition-transform cursor-pointer"
+                    style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+                    <Play className="w-8 h-8 fill-white text-white ml-1" />
+                  </span>
+                </div>
+                {/* Labels */}
+                <div className="absolute bottom-8 left-8 flex flex-col gap-3">
+                  <span className="inline-flex px-4 py-1.5 bg-sky-400 rounded-md text-white text-sm font-bold font-['Poppins'] tracking-wide w-fit">
+                    À la une
+                  </span>
+                  <div>
+                    <p className="text-white text-2xl md:text-3xl font-bold font-['Poppins']">{featured.titre}</p>
+                    {featured.sousTitre ? (
+                      <p className="text-gray-300 text-base md:text-lg font-normal font-['Poppins']">{featured.sousTitre}</p>
+                    ) : null}
                   </div>
                 </div>
               </motion.div>
+            </Link>
+          ) : null}
+
+          {/* 3 small cards */}
+          <div className="flex flex-col gap-4 w-full lg:w-[39%]">
+            {others.map((show, i) => (
+              <Link key={show.slug} href={`/emissions/${show.slug}`}
+                className="relative rounded-2xl overflow-hidden h-[148px] sm:h-[155px] lg:h-[155px] group cursor-pointer hover:scale-[1.02] transition-transform block">
+                <motion.div {...fadeUp(0.1 + i * 0.1)} className="absolute inset-0">
+                  <Image src={resolveMediaUrl(show.thumbnail) || "/images/webtv2.png"} alt={show.titre} fill className="object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-black/20" />
+                  <div className="absolute inset-0 flex flex-col justify-end p-5">
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-white text-lg font-bold font-['Poppins']">{show.titre}</p>
+                        {show.sousTitre ? <p className="text-gray-300 text-sm font-normal font-['Poppins']">{show.sousTitre}</p> : null}
+                      </div>
+                      {show.episodes ? (
+                        <p className="text-sky-400 text-xs font-medium font-['Poppins'] flex-shrink-0 ml-3">{show.episodes} épisodes</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </motion.div>
+              </Link>
             ))}
           </div>
         </div>
@@ -279,12 +357,7 @@ function WebTVSection() {
 }
 
 // ─── KNR SPOTLIGHT ───────────────────────────────────────────────────────────
-const entrepreneurs = [
-  { name: "Ibrahim Bah Zakkarih", role: "Fondateur & CEO, Entrepreneur", featured: false, img: "/images/entrepreneur1.jpg" },
-  { name: "Entrepreneur 2", role: "CEO, Innovateur", featured: false, img: "/images/entrepreneur2.jpg" },
-  { name: "Entrepreneur 3", role: "Fondateur, Créateur", featured: false, img: "/images/entrepreneur3.jpg" },
-  { name: "Entrepreneur 4", role: "Directeur, Leader", featured: false, img: "/images/entrepreneur4.png" },
-];
+type SpotlightEntrepreneur = { id: string; name: string; role: string; featured: boolean; photo?: string };
 
 const socialIcons = [
   { label: "Facebook", path: "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" },
@@ -294,6 +367,24 @@ const socialIcons = [
 ];
 
 function SpotlightSection() {
+  const [entrepreneurs, setEntrepreneurs] = useState<SpotlightEntrepreneur[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/entrepreneurs`);
+        if (!response.ok) return;
+        const list = await response.json();
+        if (Array.isArray(list)) setEntrepreneurs(list);
+      } catch {
+        setEntrepreneurs([]);
+      }
+    };
+    load();
+  }, []);
+
+  if (entrepreneurs.length === 0) return null;
+
   return (
     <section className="relative w-full bg-white py-20 overflow-hidden">
       <div className="max-w-[1580px] mx-auto px-5 sm:px-8">
@@ -317,7 +408,7 @@ function SpotlightSection() {
         <div className="hidden md:flex gap-4 h-[480px] lg:h-[520px]">
           {entrepreneurs.map((e, i) => (
             <motion.div
-              key={e.name + i}
+              key={e.id}
               {...fadeIn(i * 0.1)}
               className="relative rounded-[32px] overflow-hidden cursor-pointer flex-shrink-0 group"
               style={{ flex: e.featured ? "2 1 0" : "1 1 0", minWidth: 0 }}
@@ -325,7 +416,7 @@ function SpotlightSection() {
               transition={{ duration: 0.4, ease: "easeOut" }}
             >
               <Image
-                src={e.img}
+                src={resolveMediaUrl(e.photo) || "/images/entrepreneur1.jpg"}
                 alt={e.name} fill className="object-cover"
               />
               {/* Blue attenuted gradient from bottom — like design */}
@@ -357,9 +448,9 @@ function SpotlightSection() {
         {/* Mobile: vertical stack, all visible */}
         <div className="flex flex-col gap-4 md:hidden">
           {entrepreneurs.map((e, i) => (
-            <motion.div key={e.name + "m" + i} {...fadeUp(i * 0.1)}
+            <motion.div key={e.id + "m"} {...fadeUp(i * 0.1)}
               className="relative rounded-[24px] overflow-hidden h-64 cursor-pointer">
-              <Image src={e.img} alt={e.name} fill className="object-cover" />
+              <Image src={resolveMediaUrl(e.photo) || "/images/entrepreneur1.jpg"} alt={e.name} fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-sky-500/50 via-transparent to-transparent" />
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70" />
               <div className="absolute bottom-0 left-0 right-0 p-5">
@@ -470,16 +561,27 @@ function PodcastSection() {
 }
 
 // ─── CENTRE DE FORMATIONS ─────────────────────────────────────────────────────
-const formations = [
-  { title: "Résine époxy", duration: "3 Jours", level: "Débutant à Intermédiaire", desc: "Émissions, talk-shows, interviews et magazines pour valoriser l'Afrique qui avance." },
-  { title: "Résine époxy", duration: "3 Jours", level: "Débutant à Intermédiaire", desc: "Émissions, talk-shows, interviews et magazines pour valoriser l'Afrique qui avance." },
-  { title: "Résine époxy", duration: "3 Jours", level: "Débutant à Intermédiaire", desc: "Émissions, talk-shows, interviews et magazines pour valoriser l'Afrique qui avance." },
-  { title: "Résine époxy", duration: "3 Jours", level: "Débutant à Intermédiaire", desc: "Émissions, talk-shows, interviews et magazines pour valoriser l'Afrique qui avance." },
-  { title: "Résine époxy", duration: "3 Jours", level: "Débutant à Intermédiaire", desc: "Émissions, talk-shows, interviews et magazines pour valoriser l'Afrique qui avance." },
-  { title: "Résine époxy", duration: "3 Jours", level: "Débutant à Intermédiaire", desc: "Émissions, talk-shows, interviews et magazines pour valoriser l'Afrique qui avance." },
-];
+type HomeFormation = { slug: string; titre: string; duree?: string; niveau?: string; description?: string };
 
 function FormationsSection() {
+  const [formations, setFormations] = useState<HomeFormation[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/formations`);
+        if (!response.ok) return;
+        const list = await response.json();
+        if (Array.isArray(list)) setFormations(list.slice(0, 6));
+      } catch {
+        setFormations([]);
+      }
+    };
+    load();
+  }, []);
+
+  if (formations.length === 0) return null;
+
   return (
     <section className="relative w-full bg-gray-50 py-20 overflow-hidden">
       {/* Cross pattern background — même que Nos Activités */}
@@ -514,7 +616,7 @@ function FormationsSection() {
         {/* 3×2 Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {formations.map((f, i) => (
-            <motion.article key={f.title + i} {...fadeUp(i * 0.08)}
+            <motion.article key={f.slug} {...fadeUp(i * 0.08)}
               className="bg-white rounded-2xl p-6 flex flex-col gap-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
               style={{
                 boxShadow: "0 12px 26px 0 rgba(0,0,0,0.07)",
@@ -523,141 +625,40 @@ function FormationsSection() {
             >
               {/* Top row: title + duration badge */}
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-gray-900 text-xl font-bold font-['Poppins']">{f.title}</h3>
-                <div className="flex-shrink-0 flex items-center gap-1.5 h-7 px-2.5 py-1 bg-white rounded-[10px] shadow-[0px_0px_4px_0px_rgba(0,0,0,0.18)]">
-                  <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  <span className="text-gray-600 text-sm font-normal font-['Poppins']">{f.duration}</span>
-                </div>
+                <h3 className="text-gray-900 text-xl font-bold font-['Poppins']">{f.titre}</h3>
+                {f.duree ? (
+                  <div className="flex-shrink-0 flex items-center gap-1.5 h-7 px-2.5 py-1 bg-white rounded-[10px] shadow-[0px_0px_4px_0px_rgba(0,0,0,0.18)]">
+                    <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span className="text-gray-600 text-sm font-normal font-['Poppins']">{f.duree}</span>
+                  </div>
+                ) : null}
               </div>
 
               {/* Description */}
-              <p className="text-gray-600 text-base font-normal font-['Poppins'] leading-6 flex-1">{f.desc}</p>
+              {f.description ? (
+                <p className="text-gray-600 text-base font-normal font-['Poppins'] leading-6 flex-1">{f.description}</p>
+              ) : <div className="flex-1" />}
 
               {/* Level */}
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="1" y="16" width="4" height="6" rx="1" />
-                  <rect x="8" y="11" width="4" height="11" rx="1" />
-                  <rect x="15" y="6" width="4" height="16" rx="1" />
-                </svg>
-                <span className="text-gray-600 text-sm font-normal font-['Poppins']">{f.level}</span>
-              </div>
+              {f.niveau ? (
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="1" y="16" width="4" height="6" rx="1" />
+                    <rect x="8" y="11" width="4" height="11" rx="1" />
+                    <rect x="15" y="6" width="4" height="16" rx="1" />
+                  </svg>
+                  <span className="text-gray-600 text-sm font-normal font-['Poppins']">{f.niveau}</span>
+                </div>
+              ) : null}
 
               {/* Button */}
-              <button className="w-full mt-2 py-2.5 bg-white rounded-xl border border-gray-200 shadow-sm text-gray-900 text-sm font-normal font-['Poppins'] hover:bg-gray-50 hover:border-sky-300 hover:text-sky-500 transition-all cursor-pointer">
+              <Link href={`/formations/${f.slug}`}
+                className="w-full mt-2 py-2.5 bg-white rounded-xl border border-gray-200 shadow-sm text-gray-900 text-sm font-normal font-['Poppins'] hover:bg-gray-50 hover:border-sky-300 hover:text-sky-500 transition-all cursor-pointer text-center block">
                 Voir les détails
-              </button>
+              </Link>
             </motion.article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── NOTRE ÉQUIPE ────────────────────────────────────────────────────────────
-const teamMembers = [
-  {
-    name: "Alisa Hester",
-    role: "Founder & CEO",
-    bio: "Former co-founder of Opendoor. Early staff at Spotify and Clearbit.",
-    socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/equipe1.png"
-  },
-  {
-    name: "Rich Wilson",
-    role: "Engineering Manager",
-    bio: "Lead engineering teams at Figma, Pitch, and Protocol Labs.",
-    socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/equipe2.png"
-  },
-  {
-    name: "Annie Stanley",
-    role: "Product Manager",
-    bio: "Former PM for Airtable, Medium, Ghost, and Lumi.",
-    socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/equipe3.png"
-  },
-  {
-    name: "Johnny Bell",
-    role: "Frontend Developer",
-    bio: "Former frontend dev for Linear, Coinbase, and Postscript.",
-    socials: ["twitter", "linkedin", "dribbble"],
-    img: "/images/equipe4.png"
-  },
-];
-
-const twitterPath = "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z";
-const linkedinPath = "M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z";
-const dribbblePath = "M12 24C5.385 24 0 18.615 0 12S5.385 0 12 0s12 5.385 12 12-5.385 12-12 12zm10.12-10.358c-.35-.11-3.17-.953-6.384-.438 1.34 3.684 1.887 6.684 1.992 7.308 2.3-1.555 3.936-4.02 4.395-6.87zm-6.115 7.808c-.153-.9-.75-4.032-2.19-7.77l-.066.02c-5.79 2.015-7.86 6.017-8.04 6.4 1.73 1.358 3.92 2.166 6.29 2.166 1.42 0 2.77-.29 4-.814zm-11.62-2.073c.232-.4 3.045-5.055 8.332-6.765.135-.045.27-.084.405-.12-.26-.585-.54-1.167-.832-1.74C7.17 11.775 2.206 11.71 1.756 11.7l-.015.248c0 2.272.87 4.35 2.28 5.932zm-2.i44-7.477c.46.008 4.783.074 9.016-1.192-1.616-2.868-3.352-5.277-3.6-5.607-2.515 1.187-4.352 3.483-5.276 6.8zM9.6 2.052c.282.38 2.145 2.914 3.748 5.657 3.571-1.336 5.08-3.365 5.26-3.61C16.85 2.57 14.507 1.5 12 1.5c-.814 0-1.6.109-2.4.308zm8.557 1.99c-.228.263-1.886 2.476-5.585 4.022.235.48.456.96.67 1.44.084.196.166.39.243.583 3.35-.422 6.674.322 7.02.403-.076-2.368-.93-4.54-2.35-6.448z";
-
-function TeamSection() {
-  const socialIconPaths: Record<string, string> = {
-    twitter: twitterPath,
-    linkedin: linkedinPath,
-    dribbble: dribbblePath,
-  };
-
-  return (
-    <section className="relative w-full bg-neutral-950 py-20 overflow-hidden">
-      <div className="max-w-[1400px] mx-auto px-5 sm:px-8">
-        {/* Header */}
-        <motion.div {...fadeUp()} className="flex flex-col items-center gap-6 mb-14 text-center">
-          <span className="text-sky-400 text-base font-bold font-['Poppins'] tracking-wide">Notre équipe</span>
-          <h2 className="text-white text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold font-['Poppins'] leading-tight">
-            Une équipe passionnée à votre service
-          </h2>
-          <p className="text-white text-base md:text-xl font-normal font-['Poppins'] leading-7 max-w-[680px]">
-            Des experts de l'audiovisuel, du marketing et de la formation réunis pour donner vie à vos projets les plus ambitieux.
-          </p>
-        </motion.div>
-
-        {/* Team grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {teamMembers.map((member, i) => (
-            <motion.div key={member.name} {...fadeUp(i * 0.1)}
-              className="relative overflow-hidden group cursor-pointer"
-              style={{ height: "360px" }}
-            >
-              {/* Photo */}
-              <Image
-                src={member.img}
-                alt={member.name} fill className="object-cover"
-              />
-
-              {/* Frosted glass overlay — bottom half */}
-              <div className="absolute bottom-0 left-0 right-0"
-                style={{
-                  background: "rgba(255,255,255,0.12)",
-                  backdropFilter: "blur(12px)",
-                  WebkitBackdropFilter: "blur(12px)",
-                  borderTop: "1px solid rgba(255,255,255,0.15)",
-                  padding: "16px 16px 16px 16px",
-                }}
-              >
-                <div className="flex items-start justify-between mb-1">
-                  <p className="text-white text-lg font-bold font-['Poppins']">{member.name}</p>
-                  <a href="#" className="text-white/80 hover:text-sky-400 transition-colors ml-2 flex-shrink-0">
-                    <ArrowUpRight className="w-5 h-5" />
-                  </a>
-                </div>
-                <p className="text-white font-bold text-sm font-['Poppins'] mb-1">{member.role}</p>
-                <p className="text-white/70 text-xs font-normal font-['Poppins'] mb-3 leading-4">{member.bio}</p>
-                {/* Social icons */}
-                <div className="flex items-center gap-3">
-                  {member.socials.map((s) => (
-                    <a key={s} href="#" aria-label={s}
-                      className="text-white/60 hover:text-white hover:scale-110 transition-all">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d={socialIconPaths[s]} />
-                      </svg>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
           ))}
         </div>
       </div>

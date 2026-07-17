@@ -1,13 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Search, SlidersHorizontal, User, Calendar, ArrowUpRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { articles } from "@/lib/articles-data";
+import { getApiBase, resolveMediaUrl, formatRelativeDate } from "@/lib/api";
+
+export type Article = {
+    slug: string;
+    categorie: string;
+    titre: string;
+    extrait: string;
+    auteur: string;
+    createdAt: string;
+    thumbnail: string;
+    featured: boolean;
+};
 
 type MotionDivProps = import("framer-motion").MotionProps & {
     className?: string; style?: React.CSSProperties;
@@ -24,6 +35,38 @@ const categories = ["Toutes", "Entrepreneuriat", "Culture", "Technologie"];
 export default function BlogPage() {
     const [search, setSearch] = useState("");
     const [activeCategory, setActiveCategory] = useState("Toutes");
+    const [articles, setArticles] = useState<Article[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const response = await fetch(`${getApiBase()}/api/public/articles`);
+                if (response.ok) {
+                    const payload = await response.json();
+                    if (Array.isArray(payload)) {
+                        setArticles(
+                            payload.map((a) => ({
+                                slug: a.slug,
+                                categorie: a.category ?? "",
+                                titre: a.titre,
+                                extrait: a.excerpt ?? "",
+                                auteur: a.author ?? "",
+                                createdAt: a.createdAt ?? "",
+                                thumbnail: a.thumbnail ?? "",
+                                featured: !!a.featured,
+                            }))
+                        );
+                    }
+                }
+            } catch {
+                setArticles([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, []);
 
     const featured = articles.find((a) => a.featured);
     const rest = articles.filter((a) => !a.featured);
@@ -103,7 +146,7 @@ export default function BlogPage() {
                                 {/* Image */}
                                 <div className="relative w-full md:w-1/2 min-h-[300px] md:min-h-[380px] overflow-hidden flex-shrink-0">
                                     <Image
-                                        src={featured.img}
+                                        src={resolveMediaUrl(featured.thumbnail) || "/images/emission.jpg"}
                                         alt={featured.titre}
                                         fill
                                         className="object-cover group-hover:scale-105 transition-transform duration-500"
@@ -131,7 +174,7 @@ export default function BlogPage() {
                                         <div className="flex items-center gap-3">
                                             <span className="text-zinc-600 text-base font-normal font-['Inter']">•</span>
                                             <span className="text-zinc-600 text-xs font-normal font-['Inter']">
-                                                {featured.date}
+                                                {formatRelativeDate(featured.createdAt)}
                                             </span>
                                         </div>
                                     </div>
@@ -141,7 +184,9 @@ export default function BlogPage() {
                     )}
 
                     {/* ── ARTICLES GRID ── */}
-                    {filtered.length === 0 ? (
+                    {loading ? (
+                        <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">Chargement...</div>
+                    ) : filtered.length === 0 ? (
                         <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">
                             Aucun article trouvé.
                         </div>
@@ -178,7 +223,7 @@ export default function BlogPage() {
     );
 }
 
-function ArticleCard({ article, delay }: { article: import("@/lib/articles-data").Article; delay: number }) {
+function ArticleCard({ article, delay }: { article: Article; delay: number }) {
     return (
         <div
             className="flex flex-col group hover:-translate-y-1 transition-all duration-300"
@@ -189,7 +234,7 @@ function ArticleCard({ article, delay }: { article: import("@/lib/articles-data"
             <Link href={`/blog/${article.slug}`} className="flex flex-col h-full">
                 <div className="relative w-full h-64 rounded-t-[10px] overflow-hidden flex-shrink-0">
                     <Image
-                        src={article.img}
+                        src={resolveMediaUrl(article.thumbnail) || "/images/emission.jpg"}
                         alt={article.titre}
                         fill
                         className="object-cover group-hover:scale-105 transition-transform duration-500"
@@ -208,7 +253,7 @@ function ArticleCard({ article, delay }: { article: import("@/lib/articles-data"
                         </div>
                         <div className="flex items-center gap-1.5">
                             <Calendar className="w-4 h-4 text-zinc-600" />
-                            <span className="text-zinc-600 text-[10px] font-normal font-['Inter']">{article.dateISO}</span>
+                            <span className="text-zinc-600 text-[10px] font-normal font-['Inter']">{formatRelativeDate(article.createdAt)}</span>
                         </div>
                     </div>
                     <h3 className="text-zinc-950 text-lg font-bold font-['Inter'] leading-7 group-hover:text-sky-400 transition-colors">

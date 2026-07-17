@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -8,6 +8,9 @@ import { Camera, Monitor, Zap, Mic2, Tv, Coffee, Wind, Wifi, Shield, Armchair, C
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import StudioBookingModal from "@/components/StudioBookingModal";
+import TeamSection from "@/components/TeamSection";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+import { getApiBase } from "@/lib/api";
 
 const equipements = [
     { icon: <Camera className="w-7 h-7 text-sky-400" />, label: "Caméras 4K" },
@@ -63,8 +66,23 @@ export default function StudioPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [forfaitSelectionne, setForfaitSelectionne] = useState("demi");
     const [showAllPhotos, setShowAllPhotos] = useState(false);
+    const [reservedDates, setReservedDates] = useState<string[]>([]);
 
     const visiblePhotos = showAllPhotos ? photos : photos.slice(0, 6);
+
+    useEffect(() => {
+        const loadAvailability = async () => {
+            try {
+                const response = await fetch(`${getApiBase()}/api/public/studio-bookings/dates`);
+                if (!response.ok) return;
+                const payload = await response.json();
+                if (Array.isArray(payload?.dates)) setReservedDates(payload.dates);
+            } catch {
+                // keep empty, calendar just shows everything as available
+            }
+        };
+        loadAvailability();
+    }, []);
 
     const openModal = (forfait: string) => {
         setForfaitSelectionne(forfait);
@@ -298,6 +316,53 @@ export default function StudioPage() {
                         </div>
                     </div>
                 </section>
+
+                {/* ── DISPONIBILITÉS ── */}
+                <section className="relative w-full py-16 bg-gray-50 overflow-hidden">
+                    <div className="max-w-[1200px] mx-auto px-5 sm:px-8">
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.6 }}
+                            className="bg-white rounded-[28px] shadow-sm border border-gray-200 p-8 md:p-10 flex flex-col md:flex-row gap-10"
+                        >
+                            {/* LEFT — Instructions */}
+                            <div className="flex-1 flex flex-col justify-center gap-5">
+                                <h2 className="text-gray-900 text-3xl sm:text-4xl font-bold font-['Poppins']">Vérifiez les disponibilités</h2>
+                                <p className="text-gray-600 text-lg font-normal font-['Poppins'] leading-7">
+                                    Consultez le calendrier pour voir les jours déjà réservés avant de faire votre demande. Les jours en vert sont disponibles, ceux en rouge sont déjà pris.
+                                </p>
+                                <ul className="flex flex-col gap-3">
+                                    {[
+                                        "Le calendrier s'affiche sur le mois en cours, avec possibilité de consulter les deux mois suivants.",
+                                        "Une fois votre créneau repéré, cliquez sur « Réserver » pour envoyer votre demande.",
+                                        "Notre équipe vous recontacte pour confirmer la réservation.",
+                                    ].map((txt) => (
+                                        <li key={txt} className="flex items-start gap-3">
+                                            <Check className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
+                                            <span className="text-gray-600 text-base font-normal font-['Inter']">{txt}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <button
+                                    onClick={() => openModal(forfaitSelectionne)}
+                                    className="mt-2 w-fit px-8 py-3.5 bg-sky-400 rounded-full text-white text-base font-semibold font-['Poppins'] hover:bg-sky-500 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                                >
+                                    Réserver maintenant
+                                </button>
+                            </div>
+
+                            {/* RIGHT — Calendar */}
+                            <div className="w-full md:w-[380px] flex-shrink-0">
+                                <AvailabilityCalendar reservedDates={reservedDates} title="Disponibilités" className="" />
+                            </div>
+                        </motion.div>
+                    </div>
+                </section>
+
+                {/* ── ÉQUIPE ── */}
+                <TeamSection />
 
                 {/* ── CTA BAND ── */}
                 <section className="relative w-full py-10 px-5 sm:px-8 bg-white">

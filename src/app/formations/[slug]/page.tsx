@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -12,7 +12,28 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { formations } from "@/lib/formations-data";
+import { getApiBase, resolveMediaUrl } from "@/lib/api";
+
+type Formation = {
+  id: string;
+  slug: string;
+  titre: string;
+  categorie: string;
+  sousTitre: string;
+  description: string;
+  prix: string;
+  duree: string;
+  niveau: string;
+  lieu: string;
+  debut: string;
+  fin: string;
+  placesRestantes: number;
+  joursClotureInscription: number;
+  img: string;
+  competences: string[];
+  modules: { numero: number; label: string; titre: string; desc: string }[];
+  formateur: { nom: string; titre: string; bio: string; photo: string };
+};
 
 type MotionDivProps = import("framer-motion").MotionProps & {
   className?: string;
@@ -28,7 +49,35 @@ const fadeUp = (delay = 0): MotionDivProps => ({
 
 export default function FormationDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const formation = formations.find((f) => f.slug === slug);
+  const [formation, setFormation] = useState<Formation | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/formations/${slug}`);
+        setFormation(response.ok ? await response.json() : null);
+      } catch {
+        setFormation(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <main className="min-h-screen flex items-center justify-center bg-gray-50">
+          <p className="text-gray-500 text-xl font-['Poppins']">Chargement...</p>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   if (!formation) {
     return (
@@ -56,7 +105,7 @@ export default function FormationDetailPage() {
         <section className="relative w-full min-h-[500px] md:min-h-[600px] overflow-hidden flex items-end">
           <div className="absolute inset-0">
             <Image
-              src={formation.img}
+              src={resolveMediaUrl(formation.img) || "/images/formations.svg"}
               alt={formation.titre}
               fill
               className="object-cover object-center"
@@ -201,7 +250,7 @@ export default function FormationDetailPage() {
                 <div className="bg-neutral-950 rounded-3xl p-8 flex flex-col sm:flex-row items-start gap-6">
                   <div className="relative w-24 h-32 flex-shrink-0">
                     <Image
-                      src={formation.formateur.photo}
+                      src={resolveMediaUrl(formation.formateur.photo) || "/images/equipe1.png"}
                       alt={formation.formateur.nom}
                       fill
                       className="object-cover rounded-full border-4 border-white/10"
@@ -295,9 +344,12 @@ export default function FormationDetailPage() {
                   </div>
 
                   {/* CTA */}
-                  <button className="w-full h-14 bg-sky-400 rounded-xl text-white text-lg font-bold font-['Inter'] shadow-[0px_10px_15px_-3px_rgba(41,182,232,0.30)] hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer">
+                  <Link
+                    href={`/contact?context=formation&contextId=${formation.id}&nom=${encodeURIComponent(formation.titre)}`}
+                    className="flex w-full items-center justify-center h-14 bg-sky-400 rounded-xl text-white text-lg font-bold font-['Inter'] shadow-[0px_10px_15px_-3px_rgba(41,182,232,0.30)] hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+                  >
                     Je m&apos;inscris
-                  </button>
+                  </Link>
 
                   <p className="text-center text-gray-500 text-xs font-normal font-['Inter']">
                     Paiement sécurisé. Possibilité de payer en plusieurs fois.

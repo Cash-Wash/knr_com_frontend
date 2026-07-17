@@ -1,0 +1,18 @@
+{
+  "name": "knr-agent-obs",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "service:start": "pm2 start ecosystem.config.js",
+    "service:stop": "pm2 stop agent-obs",
+    "service:logs": "pm2 logs agent-obs",
+    "service:save": "pm2 save"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "obs-websocket-js": "^5.0.3",
+    "socket.io-client": "^4.7.2"
+  }
+}

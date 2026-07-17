@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -9,7 +9,29 @@ import { ArrowLeft, Clock, Tag, User } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import VideoPlayer from "@/components/VideoPlayer";
-import { emissions } from "@/lib/emissions-data";
+import { getApiBase, resolveMediaUrl, formatRelativeDate } from "@/lib/api";
+
+type Emission = {
+  slug: string;
+  categorie: string;
+  titre: string;
+  sousTitre: string;
+  description: string;
+  episodes: number;
+  duree: string;
+  thumbnail: string;
+  youtubeUrl: string;
+  animateur: string;
+  tags: string[];
+};
+
+type Episode = {
+  id: string;
+  emissionId: string;
+  titre: string | null;
+  youtubeUrl: string;
+  createdAt: string;
+};
 
 type MotionDivProps = import("framer-motion").MotionProps & { className?: string; style?: React.CSSProperties };
 const fadeUp = (delay = 0): MotionDivProps => ({
@@ -21,8 +43,56 @@ const fadeUp = (delay = 0): MotionDivProps => ({
 
 export default function EmissionDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const emission = emissions.find((e) => e.slug === slug);
-  const autresEmissions = emissions.filter((e) => e.slug !== slug).slice(0, 3);
+  const [emission, setEmission] = useState<Emission | null>(null);
+  const [autresEmissions, setAutresEmissions] = useState<Emission[]>([]);
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const base = getApiBase();
+        const [detailRes, listRes, episodesRes] = await Promise.all([
+          fetch(`${base}/api/public/emissions/${slug}`),
+          fetch(`${base}/api/public/emissions`),
+          fetch(`${base}/api/public/emissions/${slug}/episodes`),
+        ]);
+        setEmission(detailRes.ok ? await detailRes.json() : null);
+        if (listRes.ok) {
+          const list = await listRes.json();
+          if (Array.isArray(list)) setAutresEmissions(list.filter((e: Emission) => e.slug !== slug).slice(0, 3));
+        }
+        if (episodesRes.ok) {
+          const list = await episodesRes.json();
+          if (Array.isArray(list)) {
+            setEpisodes(list);
+            setSelectedEpisodeId(list[0]?.id ?? null);
+          }
+        }
+      } catch {
+        setEmission(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [slug]);
+
+  const selectedEpisode = episodes.find((e) => e.id === selectedEpisodeId) ?? episodes[0] ?? null;
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <main className="min-h-screen flex items-center justify-center bg-gray-50">
+          <p className="text-gray-500 text-xl font-['Poppins']">Chargement...</p>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   if (!emission) {
     return (
@@ -46,7 +116,7 @@ export default function EmissionDetailPage() {
 
         {/* HERO */}
         <section className="relative w-full min-h-[280px] overflow-hidden">
-          <Image src={emission.img} alt={emission.titre} fill className="object-cover object-center" priority />
+          <Image src={resolveMediaUrl(emission.thumbnail) || "/images/webtv1.png"} alt={emission.titre} fill className="object-cover object-center" priority />
           <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black/40" />
           <div className="relative z-10 w-full max-w-[1560px] mx-auto px-5 sm:px-8 pt-36 pb-14">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
@@ -74,7 +144,7 @@ export default function EmissionDetailPage() {
 
               {/* Video player */}
               <motion.div {...fadeUp()}>
-                <VideoPlayer src={emission.videoUrl} poster={emission.img} title={emission.titre} />
+                <VideoPlayer src={selectedEpisode?.youtubeUrl ?? emission.youtubeUrl} poster={resolveMediaUrl(emission.thumbnail)} title={selectedEpisode?.titre || emission.titre} />
               </motion.div>
 
               {/* Meta */}
@@ -103,16 +173,50 @@ export default function EmissionDetailPage() {
                 <p className="text-gray-600 text-base md:text-lg font-normal font-['Poppins'] leading-7">{emission.description}</p>
               </motion.div>
 
-              {/* Episodes count */}
-              <motion.div {...fadeUp(0.2)} className="flex items-center gap-4 p-5 bg-blue-50 rounded-2xl">
-                <div className="w-12 h-12 rounded-full bg-sky-400 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-lg font-bold font-['Sora']">{emission.episodes}</span>
-                </div>
-                <div>
-                  <p className="text-gray-900 text-base font-bold font-['Poppins']">épisodes disponibles</p>
-                  <p className="text-gray-500 text-sm font-['Poppins']">Nouveaux épisodes chaque semaine</p>
-                </div>
-              </motion.div>
+              {/* Episodes précédents */}
+              {episodes.length > 0 && (
+                <motion.div {...fadeUp(0.2)} className="flex flex-col gap-4">
+                  <div className="flex items-center gap-4 p-5 bg-blue-50 rounded-2xl">
+                    <div className="w-12 h-12 rounded-full bg-sky-400 flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-lg font-bold font-['Sora']">{emission.episodes}</span>
+                    </div>
+                    <div>
+                      <p className="text-gray-900 text-base font-bold font-['Poppins']">épisodes disponibles</p>
+                      <p className="text-gray-500 text-sm font-['Poppins']">Nouveaux épisodes chaque semaine</p>
+                    </div>
+                  </div>
+
+                  {episodes.length > 1 && (
+                    <div className="flex flex-col gap-2">
+                      <h3 className="text-gray-900 text-lg font-bold font-['Poppins']">Épisodes précédents</h3>
+                      <div className="flex flex-col gap-2">
+                        {episodes.map((ep, i) => (
+                          <button
+                            key={ep.id}
+                            type="button"
+                            onClick={() => setSelectedEpisodeId(ep.id)}
+                            className={`flex items-center gap-3 rounded-xl border p-3 text-left transition cursor-pointer ${
+                              ep.id === selectedEpisode?.id
+                                ? "border-sky-400 bg-sky-50"
+                                : "border-gray-100 bg-white hover:border-sky-200 hover:bg-sky-50/40"
+                            }`}
+                          >
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-400/10 text-sky-500 text-sm font-bold font-['Sora']">
+                              {episodes.length - i}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold font-['Poppins'] text-gray-900">
+                                {ep.titre || `Épisode ${episodes.length - i}`}
+                              </p>
+                              <p className="text-xs text-gray-500 font-['Poppins']">{formatRelativeDate(ep.createdAt)}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
             </div>
 
             {/* RIGHT — Autres émissions */}
@@ -124,7 +228,7 @@ export default function EmissionDetailPage() {
                     <Link href={`/emissions/${e.slug}`}
                       className="flex gap-4 p-3 bg-white rounded-2xl border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all group">
                       <div className="relative w-24 h-16 rounded-xl overflow-hidden flex-shrink-0">
-                        <Image src={e.img} alt={e.titre} fill className="object-cover group-hover:scale-110 transition-transform duration-300" />
+                        <Image src={resolveMediaUrl(e.thumbnail) || "/images/webtv1.png"} alt={e.titre} fill className="object-cover group-hover:scale-110 transition-transform duration-300" />
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
                             <svg className="w-3 h-3 fill-white text-white ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>

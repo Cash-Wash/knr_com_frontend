@@ -2,6 +2,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+
+
+* Email : `contact@knr-expertises.com`
+* Mot de passe : `KnrExpert2026!Secure`
+
 First, run the development server:
 
 ```bash

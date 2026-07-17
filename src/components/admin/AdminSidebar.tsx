@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Briefcase,
   Camera,
   CalendarClock,
   Clock,
@@ -34,15 +35,16 @@ const navItems = [
   { label: "Emissions", icon: Tv2, href: "/admin/emissions", match: ["/admin/emissions"] },
   { label: "Formations", icon: GraduationCap, href: "/admin/formations", match: ["/admin/formations"] },
   { label: "Location Equipements", icon: Camera, href: "/admin/location", match: ["/admin/location"] },
- // { label: "Studio Podcast", icon: Mic, href: "/admin/studio", match: ["/admin/studio"] },
-  //{ label: "Notre Equipe", icon: Users, href: "/admin/equipe", match: ["/admin/equipe"] },
+  { label: "Studio Podcast", icon: Mic, href: "/admin/studio", match: ["/admin/studio"] },
+  { label: "Notre Equipe", icon: Users, href: "/admin/equipe", match: ["/admin/equipe"] },
+  { label: "Entrepreneurs", icon: Briefcase, href: "/admin/entrepreneurs", match: ["/admin/entrepreneurs"] },
   // { label: "Emissions Video", icon: Video, href: "/admin/webtv", match: ["/admin/webtv"] },
 { label: "Live", icon: Radio, href: "/admin/lives", match: ["/admin/lives"] },
   { label: "Reunions", icon: CalendarClock, href: "/admin/reunions", match: ["/admin/reunions"] },
   { label: "Programme", icon: Clock, href: "/admin/programme", match: ["/admin/programme"] },
   { label: "Utilisateurs", icon: Users, href: "/admin/users", match: ["/admin/users"] },
   { label: "Profil", icon: User, href: "/admin/profile", match: ["/admin/profile"] },
-    { label: "Messages Contact", icon: MessageSquare, href: "/admin/messages", match: ["/admin/messages"], badge: "4" },
+  { label: "Messages Contact", icon: MessageSquare, href: "/admin/messages", match: ["/admin/messages"], badge: "4" },
   { label: "Parametres", icon: Settings, href: "/admin/settings", match: ["/admin/settings"] },
 ];
 

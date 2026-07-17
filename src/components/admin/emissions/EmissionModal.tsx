@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Plus, Upload, X } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, X } from "lucide-react";
 import type { Emission } from "@/lib/emissions-data";
 import type { EmissionCategory } from "./types";
+import ImageUpload from "@/components/admin/ui/ImageUpload";
 
 interface EmissionModalProps {
   isOpen: boolean;
@@ -120,40 +121,19 @@ export default function EmissionModal({ isOpen, onClose, categories, emission, o
             </div>
           </div>
 
-          {/* Episodes + durée */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Nombre d&apos;épisodes *</label>
-              <input required type="number" min={0} value={form.episodes}
-                onChange={(e) => setForm((f) => ({ ...f, episodes: Number(e.target.value) }))}
-                className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Durée / épisode *</label>
-              <input required value={form.duree} onChange={(e) => setForm((f) => ({ ...f, duree: e.target.value }))}
-                placeholder="ex: 45 min"
-                className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
-            </div>
+          {/* Durée */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Durée / épisode *</label>
+            <input required value={form.duree} onChange={(e) => setForm((f) => ({ ...f, duree: e.target.value }))}
+              placeholder="ex: 45 min"
+              className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
           </div>
 
-          {/* Image + Vidéo */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Image (chemin)</label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={form.img} onChange={(e) => setForm((f) => ({ ...f, img: e.target.value }))}
-                placeholder="/images/emission.jpg"
-                className="flex-1 rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
-              <button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition cursor-pointer">
-                <Upload size={13} /> Upload
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">URL de la vidéo (embed) *</label>
-            <input required value={form.videoUrl} onChange={(e) => setForm((f) => ({ ...f, videoUrl: e.target.value }))}
-              placeholder="https://www.youtube.com/embed/..."
-              className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition font-mono" />
-          </div>
+          {/* Image */}
+          <ImageUpload value={form.img} onChange={(url) => setForm((f) => ({ ...f, img: url }))} label="Vignette" />
+          <p className="text-xs text-stone-400 italic">
+            Les vidéos et le nombre d&apos;épisodes se gèrent depuis le bouton « Épisodes » de la liste des émissions{isEdit ? "" : ", une fois l'émission créée"}.
+          </p>
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">

@@ -2,19 +2,45 @@ require("dotenv").config();
 
 const express = require("express");
 const http = require("http");
+const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const multer = require("multer");
 const { Server } = require("socket.io");
 const prisma = require("./prismaClient");
 const { authMiddleware, adminMiddleware } = require("./middleware/auth");
+const agentHub = require("./agentHub");
+const youtubeDiscovery = require("./youtubeDiscovery");
+const settingsStore = require("./settingsStore");
+
+const UPLOADS_DIR = path.join(__dirname, "..", "uploads");
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${crypto.randomUUID()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, /^image\//.test(file.mimetype));
+  },
+});
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
+agentHub.registerAgentNamespace(io);
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-development";
 const SEED_PASSWORD = process.env.SEED_ADMIN_PASSWORD || "Admin123!";
@@ -80,12 +106,73 @@ function mapReunion(reunion) {
     host: reunion.host?.name ?? "",
     hostId: reunion.hostId,
     status: mapRole(reunion.status).replace("_", "-"),
-    participants: Array.isArray(reunion.participants) ? reunion.participants : [],
+    assignedUserIds: Array.isArray(reunion.assignedUserIds) ? reunion.assignedUserIds : [],
+    roomSlug: reunion.roomSlug ?? "",
+    joinUrl: reunion.roomSlug ? `https://meet.jit.si/${reunion.roomSlug}` : "",
+    accessCode: reunion.accessCode ?? "",
   };
 }
 
-function mapProgrammeItem(item) {
-  const statut = mapRole(item.statut);
+function generateAccessCode() {
+  return crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
+}
+
+function normalizeReunionStatus(status) {
+  return String(status).toUpperCase().replace(/-/g, "_");
+}
+
+function mapEntrepreneur(item) {
+  return {
+    id: item.id,
+    name: item.name,
+    role: item.role,
+    bio: item.bio ?? "",
+    photo: item.photo ?? "",
+    socials: item.socials && typeof item.socials === "object" ? item.socials : {},
+    active: !!item.active,
+  };
+}
+
+function toMinutesOfDay(heure) {
+  const [h, m] = String(heure).split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function computeProgrammeStatuses(items) {
+  const now = new Date();
+  const todayKey = now.toDateString();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const byDate = new Map();
+  items.forEach((item, idx) => {
+    const key = new Date(item.date).toDateString();
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key).push(idx);
+  });
+
+  const statuses = new Array(items.length);
+  for (const [dateKey, indices] of byDate) {
+    if (dateKey !== todayKey) {
+      const isPast = new Date(dateKey) < new Date(todayKey);
+      indices.forEach((i) => { statuses[i] = isPast ? "PAST" : "SCHEDULED"; });
+      continue;
+    }
+    const sorted = [...indices].sort((a, b) => toMinutesOfDay(items[a].heure) - toMinutesOfDay(items[b].heure));
+    let currentIdx = -1;
+    sorted.forEach((i) => {
+      if (toMinutesOfDay(items[i].heure) <= nowMinutes) currentIdx = i;
+    });
+    sorted.forEach((i) => {
+      if (i === currentIdx) statuses[i] = "CURRENT";
+      else if (toMinutesOfDay(items[i].heure) < nowMinutes) statuses[i] = "PAST";
+      else statuses[i] = "SCHEDULED";
+    });
+  }
+  return statuses;
+}
+
+function mapProgrammeItem(item, computedStatut) {
+  const statut = mapRole(computedStatut ?? item.statut);
   return {
     id: item.id,
     heure: item.heure,
@@ -101,16 +188,25 @@ function mapProgrammeItem(item) {
   };
 }
 
+function mapProgrammeItems(items) {
+  const statuses = computeProgrammeStatuses(items);
+  return items.map((item, i) => mapProgrammeItem(item, statuses[i]));
+}
+
 function mapArticle(article) {
   return {
     id: article.id,
     titre: article.titre,
     slug: article.slug,
+    excerpt: article.excerpt ?? "",
+    readTime: article.readTime ?? "",
+    featured: !!article.featured,
     content: article.content,
     status: mapRole(article.status),
     author: article.author?.name ?? "",
     category: article.category ?? "",
     publishedAt: toDateOnly(article.publishedAt),
+    createdAt: toIsoDate(article.createdAt),
     updatedAt: toDateOnly(article.updatedAt),
     thumbnail: article.thumbnail ?? "",
   };
@@ -121,15 +217,80 @@ function mapEmission(emission) {
     id: emission.id,
     titre: emission.titre,
     slug: emission.slug,
+    sousTitre: emission.sousTitre ?? "",
+    categorie: emission.categorie ?? "",
+    animateur: emission.animateur ?? "",
+    episodes: Array.isArray(emission.episodes) ? emission.episodes.length : 0,
+    duree: emission.duree ?? "",
+    tags: Array.isArray(emission.tags) ? emission.tags : [],
     description: emission.description ?? "",
     thumbnail: emission.thumbnail ?? "",
     youtubeUrl: emission.youtubeUrl ?? "",
     views: String(emission.views),
+    featured: !!emission.featured,
     status: mapRole(emission.status),
     publishedAt: toDateOnly(emission.publishedAt),
     updatedAt: toDateOnly(emission.updatedAt),
     author: emission.author?.name ?? "",
   };
+}
+
+function mapEpisode(episode) {
+  return {
+    id: episode.id,
+    emissionId: episode.emissionId,
+    titre: episode.titre ?? "",
+    youtubeUrl: episode.youtubeUrl,
+    createdAt: toIsoDate(episode.createdAt),
+  };
+}
+
+function mapTeamMember(member) {
+  return {
+    id: member.id,
+    name: member.name,
+    poste: member.poste,
+    bio: member.bio ?? "",
+    photo: member.photo ?? "",
+    status: mapRole(member.status),
+  };
+}
+
+function mapSettings(settings) {
+  return {
+    siteName: settings?.siteName ?? "",
+    siteTagline: settings?.siteTagline ?? "",
+    youtubeApiKey: settings?.youtubeApiKey ?? "",
+    youtubeChannelId: settings?.youtubeChannelId ?? "",
+    agentObsToken: settings?.agentObsToken ?? "",
+    obsWsPort: settings?.obsWsPort ?? "4455",
+    obsWsPassword: settings?.obsWsPassword ?? "",
+    updatedAt: settings?.updatedAt ? toIsoDate(settings.updatedAt) : null,
+  };
+}
+
+function mapStudioBooking(booking) {
+  return {
+    id: booking.id,
+    date: booking.date,
+    heure: booking.heure ?? "",
+    forfait: booking.forfait,
+    typeProjet: booking.typeProjet ?? "",
+    prenom: booking.prenom,
+    nom: booking.nom,
+    email: booking.email,
+    telephone: booking.telephone,
+    entreprise: booking.entreprise ?? "",
+    description: booking.description ?? "",
+    modePaiement: booking.modePaiement ?? "",
+    reference: booking.reference,
+    status: booking.status.toLowerCase(),
+    createdAt: toIsoDate(booking.createdAt),
+  };
+}
+
+function generateBookingReference() {
+  return `KNR-STUDIO-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
 function mapFormation(formation) {
@@ -147,7 +308,10 @@ function mapFormation(formation) {
     debut: formation.debut ?? "",
     fin: formation.fin ?? "",
     placesRestantes: formation.placesRestantes,
-    joursClotureInscription: formation.joursClotureInscription,
+    clotureInscriptions: formation.clotureInscriptions ? toDateOnly(formation.clotureInscriptions) : null,
+    joursClotureInscription: formation.clotureInscriptions
+      ? Math.max(0, Math.ceil((new Date(formation.clotureInscriptions).getTime() - Date.now()) / 86400000))
+      : formation.joursClotureInscription,
     img: formation.img ?? "",
     competences: Array.isArray(formation.competences) ? formation.competences : [],
     modules: Array.isArray(formation.modules) ? formation.modules : [],
@@ -170,6 +334,9 @@ function mapContactMessage(message) {
     message: message.message,
     status: message.status,
     assignedTo: message.assignedTo ?? "",
+    context: message.context ?? "",
+    contextId: message.contextId ?? "",
+    createdAt: toIsoDate(message.createdAt),
   };
 }
 
@@ -177,11 +344,18 @@ function mapEquipment(item) {
   return {
     id: item.id,
     name: item.name,
+    slug: item.slug ?? "",
     category: item.category ?? "",
     status: item.status,
     description: item.description ?? "",
     location: item.location ?? "",
     image: item.image ?? "",
+    tarifJour: item.tarifJour ?? 0,
+    caution: item.caution ?? "",
+    images: Array.isArray(item.images) ? item.images : [],
+    specs: Array.isArray(item.specs) ? item.specs : [],
+    conditions: Array.isArray(item.conditions) ? item.conditions : [],
+    reservedDates: Array.isArray(item.reservedDates) ? item.reservedDates : [],
   };
 }
 
@@ -323,6 +497,9 @@ async function seedDatabase() {
         {
           titre: "Afrique Connect ouvre de nouvelles perspectives pour les medias",
           slug: createSlug("Afrique Connect ouvre de nouvelles perspectives pour les medias"),
+          excerpt: "Analyse des nouvelles perspectives que le numerique ouvre pour les medias africains.",
+          readTime: "5 min de lecture",
+          featured: true,
           content: "Un texte de demonstration pour un article edit en admin.",
           status: "PUBLISHED",
           authorId: admin.id,
@@ -342,30 +519,40 @@ async function seedDatabase() {
   }
 
   if ((await prisma.emission.count()) === 0) {
-    await prisma.emission.createMany({
-      data: [
-        {
-          titre: "Business Africa - Episode 12",
-          slug: createSlug("Business Africa - Episode 12"),
-          description: "Edition speciale investisseurs et startups.",
-          thumbnail: "/images/webtv1.png",
-          youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-          views: 4200,
-          status: "PUBLISHED",
-          publishedAt: new Date("2026-07-10T00:00:00.000Z"),
-          authorId: admin.id,
+    await prisma.emission.create({
+      data: {
+        titre: "Business Africa - Episode 12",
+        slug: createSlug("Business Africa - Episode 12"),
+        sousTitre: "Investisseurs et startups",
+        categorie: "Economie",
+        animateur: "Aminata Diallo",
+        duree: "42 min",
+        tags: ["Business", "Startups", "Afrique"],
+        description: "Edition speciale investisseurs et startups.",
+        thumbnail: "/images/webtv1.png",
+        youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        views: 4200,
+        status: "PUBLISHED",
+        publishedAt: new Date("2026-07-10T00:00:00.000Z"),
+        authorId: admin.id,
+        episodes: {
+          create: [
+            { titre: "Episode 12 - Investisseurs et startups", youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+          ],
         },
-        {
-          titre: "Tech Talk - L'IA en Afrique",
-          slug: createSlug("Tech Talk - L'IA en Afrique"),
-          description: "Un format propose pour les innovations du continent.",
-          thumbnail: "/images/webtv2.png",
-          youtubeUrl: "https://www.youtube.com/watch?v=oHg5SJYRHA0",
-          views: 3100,
-          status: "DRAFT",
-          authorId: admin.id,
-        },
-      ],
+      },
+    });
+    await prisma.emission.create({
+      data: {
+        titre: "Tech Talk - L'IA en Afrique",
+        slug: createSlug("Tech Talk - L'IA en Afrique"),
+        description: "Un format propose pour les innovations du continent.",
+        thumbnail: "/images/webtv2.png",
+        youtubeUrl: "https://www.youtube.com/watch?v=oHg5SJYRHA0",
+        views: 3100,
+        status: "DRAFT",
+        authorId: admin.id,
+      },
     });
   }
 
@@ -407,6 +594,7 @@ async function seedDatabase() {
       data: [
         {
           name: "Camera studio",
+          slug: "camera-studio",
           category: "Video",
           status: "RESERVED",
           description: "Camera principale reservee pour le live du jour.",
@@ -415,12 +603,24 @@ async function seedDatabase() {
         },
         {
           name: "Kit micro",
+          slug: "kit-micro",
           category: "Audio",
           status: "AVAILABLE",
           description: "Microphones et accessoires disponibles.",
           location: "Regie audio",
           image: "/images/webtv2.png",
         },
+      ],
+    });
+  }
+
+  if ((await prisma.teamMember.count()) === 0) {
+    await prisma.teamMember.createMany({
+      data: [
+        { name: "Alisa Hester", poste: "Founder & CEO", bio: "Former co-founder of Opendoor. Early staff at Spotify and Clearbit.", photo: "/images/equipe1.png", status: "PUBLISHED" },
+        { name: "Rich Wilson", poste: "Engineering Manager", bio: "Lead engineering teams at Figma, Pitch, and Protocol Labs.", photo: "/images/equipe2.png", status: "PUBLISHED" },
+        { name: "Annie Stanley", poste: "Product Manager", bio: "Former PM for Airtable, Medium, Ghost, and Lumi.", photo: "/images/equipe3.png", status: "PUBLISHED" },
+        { name: "Johnny Bell", poste: "Frontend Developer", bio: "Former frontend dev for Linear, Coinbase, and Postscript.", photo: "/images/equipe4.png", status: "PUBLISHED" },
       ],
     });
   }
@@ -453,6 +653,13 @@ const asyncHandler = (handler) => (req, res, next) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "knr-admin-api" });
+});
+
+app.post("/api/uploads", authMiddleware, adminMiddleware, upload.single("file"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "Aucun fichier reçu (image uniquement)." });
+  }
+  res.status(201).json({ url: `/uploads/${req.file.filename}` });
 });
 
 app.post("/api/auth/login", asyncHandler(async (req, res) => {
@@ -608,14 +815,14 @@ app.get("/api/lives", authMiddleware, adminMiddleware, asyncHandler(async (_req,
 
 app.post("/api/lives", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { titre, youtubeUrl, youtubeId, programme = "", status = "scheduled", viewers = 0 } = req.body ?? {};
-  if (!titre || !youtubeUrl) {
-    return res.status(400).json({ error: "Titre et URL YouTube requis." });
+  if (!titre) {
+    return res.status(400).json({ error: "Titre requis." });
   }
 
   const created = await prisma.live.create({
     data: {
       titre,
-      youtubeUrl,
+      youtubeUrl: youtubeUrl || null,
       youtubeId: youtubeId || null,
       programme: programme || null,
       viewers: Number(viewers) || 0,
@@ -653,8 +860,51 @@ app.delete("/api/lives/:id", authMiddleware, adminMiddleware, asyncHandler(async
   res.status(204).end();
 }));
 
+async function endLive(id, { agentWarning = null } = {}) {
+  youtubeDiscovery.stopDiscovery(id);
+  const live = await prisma.live.update({
+    where: { id },
+    data: { status: "ENDED", endedAt: new Date() },
+  });
+  io.emit("live:stopped", mapLive(live));
+  return { live, agentWarning };
+}
+
+agentHub.onExternalStreamEnded(async ({ liveId }) => {
+  try {
+    const live = await prisma.live.findUnique({ where: { id: liveId } });
+    if (live && live.status === "LIVE") {
+      await endLive(liveId, { agentWarning: "OBS s'est arrêté en dehors de la plateforme." });
+    }
+  } catch (error) {
+    console.error("[agent] échec de clôture après arrêt externe:", error.message);
+  }
+});
+
+app.get("/api/agent/status", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  res.json(agentHub.getAgentStatus());
+}));
+
 app.post("/api/lives/:id/start", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  if (!agentHub.isAgentOnline()) {
+    return res.status(503).json({
+      error: "Agent OBS hors ligne. Démarrez l'agent sur le PC de streaming avant de lancer le direct.",
+    });
+  }
+
+  const existing = await prisma.live.findUnique({ where: { id } });
+  if (!existing) {
+    return res.status(404).json({ error: "Live introuvable." });
+  }
+
+  try {
+    await agentHub.startStream(id);
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
+
   const live = await prisma.live.update({
     where: { id },
     data: {
@@ -673,20 +923,35 @@ app.post("/api/lives/:id/start", authMiddleware, adminMiddleware, asyncHandler(a
   });
 
   io.emit("live:started", mapLive(live));
+
+  if (!live.youtubeId) {
+    youtubeDiscovery.startDiscovery(live.id, {
+      onFound: async (videoId) => {
+        const updated = await prisma.live.update({
+          where: { id: live.id },
+          data: { youtubeId: videoId, youtubeUrl: `https://www.youtube.com/watch?v=${videoId}` },
+        });
+        io.emit("live:youtube_ready", mapLive(updated));
+      },
+      onGiveUp: () => io.emit("live:youtube_pending", { liveId: live.id }),
+    });
+  }
+
   res.json({ ok: true, live: mapLive(live) });
 }));
 
 app.post("/api/lives/:id/stop", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const live = await prisma.live.update({
-    where: { id: req.params.id },
-    data: {
-      status: "ENDED",
-      endedAt: new Date(),
-    },
-  });
+  const { id } = req.params;
 
-  io.emit("live:stopped", mapLive(live));
-  res.json({ ok: true, live: mapLive(live) });
+  let agentWarning = null;
+  try {
+    await agentHub.stopStream(id);
+  } catch (error) {
+    agentWarning = `Impossible de confirmer l'arrêt OBS (${error.message}). Vérifiez le PC de streaming.`;
+  }
+
+  const { live } = await endLive(id, { agentWarning });
+  res.json({ ok: true, live: mapLive(live), warning: agentWarning });
 }));
 
 app.get("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
@@ -698,20 +963,23 @@ app.get("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (_r
 }));
 
 app.post("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const { titre, description = "", scheduledAt, hostId, host, participants = [] } = req.body ?? {};
-  const resolvedHostId = hostId || req.user.sub;
+  const { titre, description = "", scheduledAt, assignedUserIds = [] } = req.body ?? {};
   if (!titre || !scheduledAt) {
-    return res.status(400).json({ error: "Titre, date et responsable requis." });
+    return res.status(400).json({ error: "Titre et date requis." });
   }
+
+  const roomSlug = `${createSlug(titre)}-${crypto.randomBytes(4).toString("hex")}`;
 
   const reunion = await prisma.reunion.create({
     data: {
       titre,
       description: description || null,
       scheduledAt: new Date(scheduledAt),
-      hostId: resolvedHostId,
+      hostId: req.user.sub,
       status: "SCHEDULED",
-      participants,
+      assignedUserIds: Array.isArray(assignedUserIds) ? assignedUserIds : [],
+      roomSlug,
+      accessCode: generateAccessCode(),
     },
     include: { host: true },
   });
@@ -722,7 +990,7 @@ app.post("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (r
 
 app.patch("/api/reunions/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { titre, description, scheduledAt, hostId, host, status, participants } = req.body ?? {};
+  const { titre, description, scheduledAt, status, assignedUserIds } = req.body ?? {};
 
   const reunion = await prisma.reunion.update({
     where: { id },
@@ -730,13 +998,13 @@ app.patch("/api/reunions/:id", authMiddleware, adminMiddleware, asyncHandler(asy
       ...(titre ? { titre } : {}),
       ...(description !== undefined ? { description: description || null } : {}),
       ...(scheduledAt ? { scheduledAt: new Date(scheduledAt) } : {}),
-      ...(hostId ? { hostId } : host ? { hostId: req.user.sub } : {}),
-      ...(status ? { status: String(status).toUpperCase() } : {}),
-      ...(participants ? { participants } : {}),
+      ...(status ? { status: normalizeReunionStatus(status) } : {}),
+      ...(assignedUserIds !== undefined ? { assignedUserIds: Array.isArray(assignedUserIds) ? assignedUserIds : [] } : {}),
     },
     include: { host: true },
   });
 
+  io.emit("reunion:updated", mapReunion(reunion));
   res.json(mapReunion(reunion));
 }));
 
@@ -747,7 +1015,7 @@ app.delete("/api/reunions/:id", authMiddleware, adminMiddleware, asyncHandler(as
 
 app.get("/api/programme", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
   const items = await prisma.programmeItem.findMany({ orderBy: [{ date: "desc" }, { heure: "asc" }] });
-  res.json(items.map(mapProgrammeItem));
+  res.json(mapProgrammeItems(items));
 }));
 
 app.post("/api/programme", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
@@ -767,12 +1035,12 @@ app.post("/api/programme", authMiddleware, adminMiddleware, asyncHandler(async (
     },
   });
 
-  res.status(201).json(mapProgrammeItem(item));
+  res.status(201).json(mapProgrammeItem(item, computeProgrammeStatuses([item])[0]));
 }));
 
 app.patch("/api/programme/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { heure, titre, description, statut, date } = req.body ?? {};
+  const { heure, titre, description, date } = req.body ?? {};
 
   const item = await prisma.programmeItem.update({
     where: { id },
@@ -780,12 +1048,11 @@ app.patch("/api/programme/:id", authMiddleware, adminMiddleware, asyncHandler(as
       ...(heure ? { heure } : {}),
       ...(titre ? { titre } : {}),
       ...(description !== undefined ? { description: description || null } : {}),
-      ...(statut ? { statut: String(statut).toUpperCase() } : {}),
       ...(date ? { date: new Date(date) } : {}),
     },
   });
 
-  res.json(mapProgrammeItem(item));
+  res.json(mapProgrammeItem(item, computeProgrammeStatuses([item])[0]));
 }));
 
 app.delete("/api/programme/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
@@ -799,7 +1066,17 @@ app.get("/api/articles", authMiddleware, adminMiddleware, asyncHandler(async (_r
 }));
 
 app.post("/api/articles", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const { titre, content, category = "", thumbnail = "", status = "draft", authorId } = req.body ?? {};
+  const {
+    titre,
+    content,
+    excerpt = "",
+    readTime = "",
+    featured = false,
+    category = "",
+    thumbnail = "",
+    status = "draft",
+    authorId,
+  } = req.body ?? {};
   if (!titre || !content) {
     return res.status(400).json({ error: "Titre et contenu requis." });
   }
@@ -809,6 +1086,9 @@ app.post("/api/articles", authMiddleware, adminMiddleware, asyncHandler(async (r
       titre,
       slug: createSlug(titre),
       content,
+      excerpt: excerpt || null,
+      readTime: readTime || null,
+      featured: !!featured,
       category: category || null,
       thumbnail: thumbnail || null,
       status: String(status).toUpperCase(),
@@ -823,13 +1103,16 @@ app.post("/api/articles", authMiddleware, adminMiddleware, asyncHandler(async (r
 
 app.patch("/api/articles/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { titre, content, category, thumbnail, status } = req.body ?? {};
+  const { titre, content, excerpt, readTime, featured, category, thumbnail, status } = req.body ?? {};
 
   const article = await prisma.blogArticle.update({
     where: { id },
     data: {
       ...(titre ? { titre, slug: createSlug(titre) } : {}),
       ...(content !== undefined ? { content } : {}),
+      ...(excerpt !== undefined ? { excerpt: excerpt || null } : {}),
+      ...(readTime !== undefined ? { readTime: readTime || null } : {}),
+      ...(featured !== undefined ? { featured: !!featured } : {}),
       ...(category !== undefined ? { category: category || null } : {}),
       ...(thumbnail !== undefined ? { thumbnail: thumbnail || null } : {}),
       ...(status ? { status: String(status).toUpperCase() } : {}),
@@ -847,12 +1130,26 @@ app.delete("/api/articles/:id", authMiddleware, adminMiddleware, asyncHandler(as
 }));
 
 app.get("/api/emissions", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
-  const emissions = await prisma.emission.findMany({ include: { author: true }, orderBy: { updatedAt: "desc" } });
+  const emissions = await prisma.emission.findMany({ include: { author: true, episodes: true }, orderBy: { updatedAt: "desc" } });
   res.json(emissions.map(mapEmission));
 }));
 
 app.post("/api/emissions", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const { titre, description = "", thumbnail = "", youtubeUrl = "", views = 0, status = "draft", authorId } = req.body ?? {};
+  const {
+    titre,
+    sousTitre = "",
+    categorie = "",
+    animateur = "",
+    duree = "",
+    tags = [],
+    description = "",
+    thumbnail = "",
+    youtubeUrl = "",
+    views = 0,
+    featured = false,
+    status = "draft",
+    authorId,
+  } = req.body ?? {};
   if (!titre) {
     return res.status(400).json({ error: "Titre requis." });
   }
@@ -861,43 +1158,118 @@ app.post("/api/emissions", authMiddleware, adminMiddleware, asyncHandler(async (
     data: {
       titre,
       slug: createSlug(titre),
+      sousTitre: sousTitre || null,
+      categorie: categorie || null,
+      animateur: animateur || null,
+      duree: duree || null,
+      tags,
       description: description || null,
       thumbnail: thumbnail || null,
       youtubeUrl: youtubeUrl || null,
       views: Number(views) || 0,
+      featured: !!featured,
       status: String(status).toUpperCase(),
       authorId: authorId || req.user.sub,
       publishedAt: String(status).toLowerCase() === "published" ? new Date() : null,
     },
-    include: { author: true },
+    include: { author: true, episodes: true },
   });
+
+  if (featured) {
+    await prisma.emission.updateMany({ where: { id: { not: emission.id } }, data: { featured: false } });
+  }
 
   res.status(201).json(mapEmission(emission));
 }));
 
 app.patch("/api/emissions/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { titre, description, thumbnail, youtubeUrl, views, status } = req.body ?? {};
+  const { titre, sousTitre, categorie, animateur, duree, tags, description, thumbnail, youtubeUrl, views, featured, status } = req.body ?? {};
 
   const emission = await prisma.emission.update({
     where: { id },
     data: {
       ...(titre ? { titre, slug: createSlug(titre) } : {}),
+      ...(sousTitre !== undefined ? { sousTitre: sousTitre || null } : {}),
+      ...(categorie !== undefined ? { categorie: categorie || null } : {}),
+      ...(animateur !== undefined ? { animateur: animateur || null } : {}),
+      ...(duree !== undefined ? { duree: duree || null } : {}),
+      ...(tags !== undefined ? { tags } : {}),
       ...(description !== undefined ? { description: description || null } : {}),
       ...(thumbnail !== undefined ? { thumbnail: thumbnail || null } : {}),
       ...(youtubeUrl !== undefined ? { youtubeUrl: youtubeUrl || null } : {}),
       ...(views !== undefined ? { views: Number(views) || 0 } : {}),
+      ...(featured !== undefined ? { featured: !!featured } : {}),
       ...(status ? { status: String(status).toUpperCase() } : {}),
       ...(status && String(status).toLowerCase() === "published" ? { publishedAt: new Date() } : {}),
     },
-    include: { author: true },
+    include: { author: true, episodes: true },
   });
+
+  if (featured) {
+    await prisma.emission.updateMany({ where: { id: { not: id } }, data: { featured: false } });
+  }
 
   res.json(mapEmission(emission));
 }));
 
 app.delete("/api/emissions/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   await prisma.emission.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+}));
+
+app.get("/api/emissions/:emissionId/episodes", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const episodes = await prisma.episode.findMany({
+    where: { emissionId: req.params.emissionId },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(episodes.map(mapEpisode));
+}));
+
+app.post("/api/emissions/:emissionId/episodes", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { emissionId } = req.params;
+  const { titre = "", youtubeUrl } = req.body ?? {};
+  if (!youtubeUrl) {
+    return res.status(400).json({ error: "URL YouTube requise." });
+  }
+
+  const emission = await prisma.emission.findUnique({ where: { id: emissionId } });
+  if (!emission) {
+    return res.status(404).json({ error: "Emission introuvable." });
+  }
+
+  const episode = await prisma.episode.create({
+    data: { emissionId, titre: titre || null, youtubeUrl },
+  });
+  res.status(201).json(mapEpisode(episode));
+}));
+
+app.patch("/api/emissions/:emissionId/episodes/:episodeId", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { emissionId, episodeId } = req.params;
+  const { titre, youtubeUrl } = req.body ?? {};
+
+  const existing = await prisma.episode.findUnique({ where: { id: episodeId } });
+  if (!existing || existing.emissionId !== emissionId) {
+    return res.status(404).json({ error: "Episode introuvable." });
+  }
+
+  const episode = await prisma.episode.update({
+    where: { id: episodeId },
+    data: {
+      ...(titre !== undefined ? { titre: titre || null } : {}),
+      ...(youtubeUrl !== undefined ? { youtubeUrl } : {}),
+    },
+  });
+  res.json(mapEpisode(episode));
+}));
+
+app.delete("/api/emissions/:emissionId/episodes/:episodeId", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { emissionId, episodeId } = req.params;
+  const existing = await prisma.episode.findUnique({ where: { id: episodeId } });
+  if (!existing || existing.emissionId !== emissionId) {
+    return res.status(404).json({ error: "Episode introuvable." });
+  }
+  await prisma.episode.delete({ where: { id: episodeId } });
   res.status(204).end();
 }));
 
@@ -920,7 +1292,7 @@ app.post("/api/formations", authMiddleware, adminMiddleware, asyncHandler(async 
     debut = "",
     fin = "",
     placesRestantes = 0,
-    joursClotureInscription = 0,
+    clotureInscriptions,
     img = "",
     competences = [],
     modules = [],
@@ -946,7 +1318,7 @@ app.post("/api/formations", authMiddleware, adminMiddleware, asyncHandler(async 
       debut: debut || null,
       fin: fin || null,
       placesRestantes: Number(placesRestantes) || 0,
-      joursClotureInscription: Number(joursClotureInscription) || 0,
+      clotureInscriptions: clotureInscriptions ? new Date(clotureInscriptions) : null,
       img: img || null,
       competences,
       modules,
@@ -976,7 +1348,7 @@ app.patch("/api/formations/:id", authMiddleware, adminMiddleware, asyncHandler(a
     debut,
     fin,
     placesRestantes,
-    joursClotureInscription,
+    clotureInscriptions,
     img,
     competences,
     modules,
@@ -999,7 +1371,7 @@ app.patch("/api/formations/:id", authMiddleware, adminMiddleware, asyncHandler(a
       ...(debut !== undefined ? { debut: debut || null } : {}),
       ...(fin !== undefined ? { fin: fin || null } : {}),
       ...(placesRestantes !== undefined ? { placesRestantes: Number(placesRestantes) || 0 } : {}),
-      ...(joursClotureInscription !== undefined ? { joursClotureInscription: Number(joursClotureInscription) || 0 } : {}),
+      ...(clotureInscriptions !== undefined ? { clotureInscriptions: clotureInscriptions ? new Date(clotureInscriptions) : null } : {}),
       ...(img !== undefined ? { img: img || null } : {}),
       ...(competences !== undefined ? { competences } : {}),
       ...(modules !== undefined ? { modules } : {}),
@@ -1019,8 +1391,15 @@ app.delete("/api/formations/:id", authMiddleware, adminMiddleware, asyncHandler(
   res.status(204).end();
 }));
 
-app.get("/api/messages", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
-  const messages = await prisma.contactMessage.findMany({ orderBy: { updatedAt: "desc" } });
+app.get("/api/messages", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { context, contextId } = req.query;
+  const messages = await prisma.contactMessage.findMany({
+    where: {
+      ...(context ? { context: String(context) } : {}),
+      ...(contextId ? { contextId: String(contextId) } : {}),
+    },
+    orderBy: { updatedAt: "desc" },
+  });
   res.json(messages.map(mapContactMessage));
 }));
 
@@ -1074,7 +1453,20 @@ app.get("/api/equipment", authMiddleware, adminMiddleware, asyncHandler(async (_
 }));
 
 app.post("/api/equipment", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const { name, category = "", status = "AVAILABLE", description = "", location = "", image = "" } = req.body ?? {};
+  const {
+    name,
+    category = "",
+    status = "AVAILABLE",
+    description = "",
+    location = "",
+    image = "",
+    tarifJour = 0,
+    caution = "",
+    images = [],
+    specs = [],
+    conditions = [],
+    reservedDates = [],
+  } = req.body ?? {};
   if (!name) {
     return res.status(400).json({ error: "Nom de l'equipement requis." });
   }
@@ -1082,11 +1474,18 @@ app.post("/api/equipment", authMiddleware, adminMiddleware, asyncHandler(async (
   const created = await prisma.equipment.create({
     data: {
       name,
+      slug: createSlug(name),
       category: category || null,
       status,
       description: description || null,
       location: location || null,
       image: image || null,
+      tarifJour: Number(tarifJour) || 0,
+      caution: caution || null,
+      images,
+      specs,
+      conditions,
+      reservedDates,
     },
   });
 
@@ -1095,17 +1494,23 @@ app.post("/api/equipment", authMiddleware, adminMiddleware, asyncHandler(async (
 
 app.patch("/api/equipment/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, category, status, description, location, image } = req.body ?? {};
+  const { name, category, status, description, location, image, tarifJour, caution, images, specs, conditions, reservedDates } = req.body ?? {};
 
   const updated = await prisma.equipment.update({
     where: { id },
     data: {
-      ...(name ? { name } : {}),
+      ...(name ? { name, slug: createSlug(name) } : {}),
       ...(category !== undefined ? { category: category || null } : {}),
       ...(status ? { status } : {}),
       ...(description !== undefined ? { description: description || null } : {}),
       ...(location !== undefined ? { location: location || null } : {}),
       ...(image !== undefined ? { image: image || null } : {}),
+      ...(tarifJour !== undefined ? { tarifJour: Number(tarifJour) || 0 } : {}),
+      ...(caution !== undefined ? { caution: caution || null } : {}),
+      ...(images !== undefined ? { images } : {}),
+      ...(specs !== undefined ? { specs } : {}),
+      ...(conditions !== undefined ? { conditions } : {}),
+      ...(reservedDates !== undefined ? { reservedDates } : {}),
     },
   });
 
@@ -1117,14 +1522,383 @@ app.delete("/api/equipment/:id", authMiddleware, adminMiddleware, asyncHandler(a
   res.status(204).end();
 }));
 
+app.get("/api/studio-bookings", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  const bookings = await prisma.studioBooking.findMany({ orderBy: { createdAt: "desc" } });
+  res.json(bookings.map(mapStudioBooking));
+}));
+
+app.patch("/api/studio-bookings/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { status } = req.body ?? {};
+  const allowed = ["pending", "confirmed", "rejected", "cancelled"];
+  if (!status || !allowed.includes(String(status).toLowerCase())) {
+    return res.status(400).json({ error: "Statut invalide." });
+  }
+
+  const booking = await prisma.studioBooking.update({
+    where: { id: req.params.id },
+    data: { status: String(status).toUpperCase() },
+  });
+  res.json(mapStudioBooking(booking));
+}));
+
+app.delete("/api/studio-bookings/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  await prisma.studioBooking.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+}));
+
+app.get("/api/team", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  const members = await prisma.teamMember.findMany({ orderBy: { createdAt: "desc" } });
+  res.json(members.map(mapTeamMember));
+}));
+
+app.post("/api/team", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { name, poste, bio = "", photo = "", status = "draft" } = req.body ?? {};
+  if (!name || !poste) {
+    return res.status(400).json({ error: "Nom et poste requis." });
+  }
+
+  const member = await prisma.teamMember.create({
+    data: {
+      name,
+      poste,
+      bio: bio || null,
+      photo: photo || null,
+      status: String(status).toUpperCase(),
+    },
+  });
+
+  res.status(201).json(mapTeamMember(member));
+}));
+
+app.patch("/api/team/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, poste, bio, photo, status } = req.body ?? {};
+
+  const member = await prisma.teamMember.update({
+    where: { id },
+    data: {
+      ...(name ? { name } : {}),
+      ...(poste ? { poste } : {}),
+      ...(bio !== undefined ? { bio: bio || null } : {}),
+      ...(photo !== undefined ? { photo: photo || null } : {}),
+      ...(status ? { status: String(status).toUpperCase() } : {}),
+    },
+  });
+
+  res.json(mapTeamMember(member));
+}));
+
+app.delete("/api/team/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  await prisma.teamMember.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+}));
+
+app.get("/api/public/team", asyncHandler(async (_req, res) => {
+  const members = await prisma.teamMember.findMany({
+    where: { status: "PUBLISHED" },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(members.map(mapTeamMember));
+}));
+
+app.get("/api/public/studio-bookings/dates", asyncHandler(async (_req, res) => {
+  const bookings = await prisma.studioBooking.findMany({
+    where: { status: { in: ["PENDING", "CONFIRMED"] } },
+    select: { date: true },
+  });
+  res.json({ dates: Array.from(new Set(bookings.map((b) => b.date))) });
+}));
+
+app.post("/api/public/studio-bookings", asyncHandler(async (req, res) => {
+  const {
+    date,
+    heure = "",
+    forfait,
+    typeProjet = "",
+    prenom,
+    nom,
+    email,
+    telephone,
+    entreprise = "",
+    description = "",
+    modePaiement = "",
+  } = req.body ?? {};
+
+  if (!date || !forfait || !prenom || !nom || !email || !telephone) {
+    return res.status(400).json({ error: "Date, forfait, prénom, nom, email et téléphone requis." });
+  }
+
+  const booking = await prisma.studioBooking.create({
+    data: {
+      date,
+      heure: heure || null,
+      forfait,
+      typeProjet: typeProjet || null,
+      prenom,
+      nom,
+      email,
+      telephone,
+      entreprise: entreprise || null,
+      description: description || null,
+      modePaiement: modePaiement || null,
+      reference: generateBookingReference(),
+    },
+  });
+
+  res.status(201).json(mapStudioBooking(booking));
+}));
+
+app.get("/api/settings", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+  res.json(mapSettings(settings));
+}));
+
+app.patch("/api/settings", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { siteName, siteTagline, youtubeApiKey, youtubeChannelId, agentObsToken, obsWsPort, obsWsPassword } = req.body ?? {};
+
+  const data = {
+    ...(siteName !== undefined ? { siteName: siteName || null } : {}),
+    ...(siteTagline !== undefined ? { siteTagline: siteTagline || null } : {}),
+    ...(youtubeApiKey !== undefined ? { youtubeApiKey: youtubeApiKey || null } : {}),
+    ...(youtubeChannelId !== undefined ? { youtubeChannelId: youtubeChannelId || null } : {}),
+    ...(agentObsToken !== undefined ? { agentObsToken: agentObsToken || null } : {}),
+    ...(obsWsPort !== undefined ? { obsWsPort: obsWsPort || null } : {}),
+    ...(obsWsPassword !== undefined ? { obsWsPassword: obsWsPassword || null } : {}),
+  };
+
+  const settings = await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    update: data,
+    create: { id: "singleton", ...data },
+  });
+
+  await settingsStore.refreshSettings();
+  agentHub.pushConfigToAgent();
+  res.json(mapSettings(settings));
+}));
+
+app.post("/api/public/messages", asyncHandler(async (req, res) => {
+  const { name, email, subject, message, context, contextId } = req.body ?? {};
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ error: "Tous les champs sont requis." });
+  }
+
+  const created = await prisma.contactMessage.create({
+    data: {
+      name,
+      email,
+      subject,
+      message,
+      status: "NEW",
+      context: context || null,
+      contextId: contextId || null,
+    },
+  });
+
+  res.status(201).json({ ok: true, id: created.id });
+}));
+
+app.get("/api/public/emissions", asyncHandler(async (_req, res) => {
+  const emissions = await prisma.emission.findMany({
+    where: { status: "PUBLISHED" },
+    include: { author: true, episodes: true },
+    orderBy: { publishedAt: "desc" },
+  });
+  res.json(emissions.map(mapEmission));
+}));
+
+app.get("/api/public/emissions/:slug", asyncHandler(async (req, res) => {
+  const emission = await prisma.emission.findFirst({
+    where: { slug: req.params.slug, status: "PUBLISHED" },
+    include: { author: true, episodes: true },
+  });
+  if (!emission) return res.status(404).json({ error: "Emission introuvable." });
+  res.json(mapEmission(emission));
+}));
+
+app.get("/api/public/emissions/:slug/episodes", asyncHandler(async (req, res) => {
+  const emission = await prisma.emission.findFirst({
+    where: { slug: req.params.slug, status: "PUBLISHED" },
+  });
+  if (!emission) return res.status(404).json({ error: "Emission introuvable." });
+
+  const episodes = await prisma.episode.findMany({
+    where: { emissionId: emission.id },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(episodes.map(mapEpisode));
+}));
+
+app.get("/api/public/formations", asyncHandler(async (_req, res) => {
+  const formations = await prisma.formation.findMany({
+    where: { status: "PUBLISHED" },
+    orderBy: { updatedAt: "desc" },
+  });
+  res.json(formations.map(mapFormation));
+}));
+
+app.get("/api/public/formations/:slug", asyncHandler(async (req, res) => {
+  const formation = await prisma.formation.findFirst({
+    where: { slug: req.params.slug, status: "PUBLISHED" },
+  });
+  if (!formation) return res.status(404).json({ error: "Formation introuvable." });
+  res.json(mapFormation(formation));
+}));
+
+app.get("/api/public/articles", asyncHandler(async (_req, res) => {
+  const articles = await prisma.blogArticle.findMany({
+    where: { status: "PUBLISHED" },
+    include: { author: true },
+    orderBy: { publishedAt: "desc" },
+  });
+  res.json(articles.map(mapArticle));
+}));
+
+app.get("/api/public/articles/:slug", asyncHandler(async (req, res) => {
+  const article = await prisma.blogArticle.findFirst({
+    where: { slug: req.params.slug, status: "PUBLISHED" },
+    include: { author: true },
+  });
+  if (!article) return res.status(404).json({ error: "Article introuvable." });
+  res.json(mapArticle(article));
+}));
+
+app.get("/api/public/equipment", asyncHandler(async (_req, res) => {
+  const items = await prisma.equipment.findMany({ orderBy: { updatedAt: "desc" } });
+  res.json(items.map(mapEquipment));
+}));
+
+app.get("/api/public/equipment/:slug", asyncHandler(async (req, res) => {
+  const item = await prisma.equipment.findFirst({ where: { slug: req.params.slug } });
+  if (!item) return res.status(404).json({ error: "Equipement introuvable." });
+  res.json(mapEquipment(item));
+}));
+
+app.get("/api/entrepreneurs", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
+  const items = await prisma.entrepreneur.findMany({ orderBy: { createdAt: "desc" } });
+  res.json(items.map(mapEntrepreneur));
+}));
+
+app.post("/api/entrepreneurs", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { name, role, bio = "", photo = "", socials = {}, active = true } = req.body ?? {};
+  if (!name || !role) {
+    return res.status(400).json({ error: "Nom et rôle requis." });
+  }
+
+  const created = await prisma.entrepreneur.create({
+    data: {
+      name,
+      role,
+      bio: bio || null,
+      photo: photo || null,
+      socials: socials && typeof socials === "object" ? socials : {},
+      active: !!active,
+    },
+  });
+
+  res.status(201).json(mapEntrepreneur(created));
+}));
+
+app.patch("/api/entrepreneurs/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, role, bio, photo, socials, active } = req.body ?? {};
+
+  const updated = await prisma.entrepreneur.update({
+    where: { id },
+    data: {
+      ...(name ? { name } : {}),
+      ...(role ? { role } : {}),
+      ...(bio !== undefined ? { bio: bio || null } : {}),
+      ...(photo !== undefined ? { photo: photo || null } : {}),
+      ...(socials !== undefined ? { socials: socials && typeof socials === "object" ? socials : {} } : {}),
+      ...(active !== undefined ? { active: !!active } : {}),
+    },
+  });
+
+  res.json(mapEntrepreneur(updated));
+}));
+
+app.delete("/api/entrepreneurs/:id", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  await prisma.entrepreneur.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+}));
+
+app.get("/api/public/entrepreneurs", asyncHandler(async (_req, res) => {
+  const items = await prisma.entrepreneur.findMany({
+    where: { active: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(items.map(mapEntrepreneur));
+}));
+
+function getAuthenticatedUser(req) {
+  const header = req.headers.authorization ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
+
+function buildJitsiJoinUrl(roomSlug, displayName) {
+  const base = `https://meet.jit.si/${roomSlug}`;
+  if (!displayName) return base;
+  return `${base}#userInfo.displayName=${encodeURIComponent(JSON.stringify(displayName))}`;
+}
+
+app.get("/api/public/reunions/:roomSlug", asyncHandler(async (req, res) => {
+  const reunion = await prisma.reunion.findFirst({
+    where: { roomSlug: req.params.roomSlug },
+    include: { host: true },
+  });
+  if (!reunion) return res.status(404).json({ error: "Réunion introuvable." });
+
+  const mapped = mapReunion(reunion);
+  const authUser = getAuthenticatedUser(req);
+  const assigned = !!authUser && mapped.assignedUserIds.includes(authUser.sub);
+  const started = reunion.status === "IN_PROGRESS";
+
+  res.json({
+    titre: mapped.titre,
+    scheduledAt: mapped.scheduledAt,
+    status: mapped.status,
+    host: mapped.host,
+    roomSlug: mapped.roomSlug,
+    assigned,
+    started,
+    joinUrl: assigned && started ? buildJitsiJoinUrl(reunion.roomSlug, authUser.name) : null,
+  });
+}));
+
+app.post("/api/public/reunions/:roomSlug/verify", asyncHandler(async (req, res) => {
+  const { code, name } = req.body ?? {};
+  const reunion = await prisma.reunion.findFirst({ where: { roomSlug: req.params.roomSlug } });
+  if (!reunion) return res.status(404).json({ error: "Réunion introuvable." });
+
+  if (!code || String(code).trim().toUpperCase() !== (reunion.accessCode ?? "").toUpperCase()) {
+    return res.status(403).json({ ok: false, error: "Code d'accès invalide." });
+  }
+  if (reunion.status === "ENDED") {
+    return res.status(409).json({ ok: false, error: "Cette réunion est terminée." });
+  }
+  if (reunion.status !== "IN_PROGRESS") {
+    return res.status(409).json({ ok: false, error: "La réunion n'a pas encore démarré. Réessayez lorsque l'hôte l'aura démarrée." });
+  }
+
+  const displayName = name && String(name).trim() ? String(name).trim() : "Invité";
+  res.json({ ok: true, joinUrl: buildJitsiJoinUrl(reunion.roomSlug, displayName) });
+}));
+
 app.get("/api/webtv/current", asyncHandler(async (_req, res) => {
   const live = await prisma.live.findFirst({ where: { status: "LIVE" }, orderBy: { updatedAt: "desc" } });
   const programme = await prisma.programmeItem.findMany({ orderBy: [{ date: "desc" }, { heure: "asc" }] });
-  const emissions = await prisma.emission.findMany({ include: { author: true }, orderBy: { updatedAt: "desc" }, take: 6 });
+  const emissions = await prisma.emission.findMany({ include: { author: true, episodes: true }, orderBy: { updatedAt: "desc" }, take: 6 });
 
   res.json({
     live: live ? mapLive(live) : null,
-    programme: programme.map(mapProgrammeItem),
+    programme: mapProgrammeItems(programme),
     emissions: emissions.map(mapEmission),
   });
 }));
@@ -1142,6 +1916,7 @@ const PORT = process.env.PORT || 4000;
   try {
     await prisma.$connect();
     await seedDatabase();
+    await settingsStore.refreshSettings();
     server.listen(PORT, () => {
       console.log(`Backend listening on http://localhost:${PORT}`);
     });

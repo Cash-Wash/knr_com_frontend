@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -10,7 +10,19 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { formations } from "@/lib/formations-data";
+import { getApiBase, resolveMediaUrl } from "@/lib/api";
+
+type Formation = {
+  slug: string;
+  titre: string;
+  categorie: string;
+  prix: string;
+  debut: string;
+  fin: string;
+  niveau: string;
+  placesRestantes: number;
+  img: string;
+};
 
 type MotionDivProps = import("framer-motion").MotionProps & {
   className?: string;
@@ -29,6 +41,25 @@ const categories = ["Toutes", "Audiovisuel", "Marketing", "Média"];
 export default function FormationsPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Toutes");
+  const [formations, setFormations] = useState<Formation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/formations`);
+        if (response.ok) {
+          const payload = await response.json();
+          if (Array.isArray(payload)) setFormations(payload);
+        }
+      } catch {
+        setFormations([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const filtered = formations.filter((f) => {
     const matchCat =
@@ -123,7 +154,9 @@ export default function FormationsPage() {
 
         {/* ── FORMATIONS GRID ── */}
         <div className="w-full max-w-[1558px] mx-auto px-5 sm:px-8 pb-20 mt-6">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">Chargement...</div>
+          ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">
               Aucune formation trouvée.
             </div>
@@ -138,7 +171,7 @@ export default function FormationsPage() {
                   {/* Card image */}
                   <div className="relative w-full h-52 overflow-hidden flex-shrink-0">
                     <Image
-                      src={f.img}
+                      src={resolveMediaUrl(f.img) || "/images/formations.svg"}
                       alt={f.titre}
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"

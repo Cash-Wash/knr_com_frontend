@@ -1,13 +1,44 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, SlidersHorizontal, ArrowUpRight } from "lucide-react";
+import { Search, SlidersHorizontal, ArrowUpRight, CalendarDays, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { equipements } from "@/lib/equipements-data";
+import { getApiBase, resolveMediaUrl } from "@/lib/api";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+
+type Equipement = {
+  slug: string;
+  categorie: string;
+  nom: string;
+  prix: string;
+  disponible: boolean;
+  img: string;
+  reservedDates: string[];
+};
+
+function mapEquipment(item: {
+  slug?: string;
+  category?: string;
+  name: string;
+  tarifJour?: number;
+  status?: string;
+  image?: string;
+  reservedDates?: string[];
+}): Equipement {
+  return {
+    slug: item.slug ?? "",
+    categorie: item.category ?? "",
+    nom: item.name,
+    prix: item.tarifJour ? `${item.tarifJour.toLocaleString("fr-FR")} FCFA` : "Sur devis",
+    disponible: item.status === "AVAILABLE",
+    img: item.image ?? "",
+    reservedDates: Array.isArray(item.reservedDates) ? item.reservedDates : [],
+  };
+}
 
 type MotionDivProps = import("framer-motion").MotionProps & { className?: string; style?: React.CSSProperties };
 const fadeUp = (delay = 0): MotionDivProps => ({
@@ -22,6 +53,26 @@ const categories = ["Toutes", "Drones", "Caméras", "Micros", "Éclairages"];
 export default function LocationPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Toutes");
+  const [equipements, setEquipements] = useState<Equipement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [calendarFor, setCalendarFor] = useState<Equipement | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/equipment`);
+        if (response.ok) {
+          const payload = await response.json();
+          if (Array.isArray(payload)) setEquipements(payload.map(mapEquipment));
+        }
+      } catch {
+        setEquipements([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const filtered = equipements.filter((e) => {
     const matchCat = activeCategory === "Toutes" || e.categorie === activeCategory;
@@ -84,7 +135,9 @@ export default function LocationPage() {
 
         {/* EQUIPEMENTS GRID */}
         <div className="w-full max-w-[1558px] mx-auto px-5 sm:px-8 pb-20 mt-6">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">Chargement...</div>
+          ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">Aucun équipement trouvé.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -95,7 +148,7 @@ export default function LocationPage() {
 
                   {/* Image */}
                   <div className="relative w-full h-52 overflow-hidden flex-shrink-0 bg-gray-100">
-                    <Image src={eq.img} alt={eq.nom} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <Image src={resolveMediaUrl(eq.img) || "/images/equipement.jpg"} alt={eq.nom} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
                     <div className="absolute top-4 left-4">
                       <span className="px-4 py-1 bg-white rounded-full text-stone-900 text-sm font-semibold font-['Poppins'] shadow-sm">
                         {eq.categorie === "Drones" ? "Drone" : eq.categorie.slice(0, -1)}
@@ -123,12 +176,21 @@ export default function LocationPage() {
 
                     <div className="flex-1" />
 
-                    {/* CTA */}
-                    <Link href={`/location/${eq.slug}`}
-                      className="mt-2 w-full flex items-center justify-center gap-2 py-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-900 text-base font-bold font-['Poppins'] hover:bg-sky-400 hover:text-white hover:border-sky-400 transition-all group/btn">
-                      Réserver
-                      <ArrowUpRight className="w-4 h-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
-                    </Link>
+                    {/* Actions */}
+                    <div className="mt-2 flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarFor(eq)}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-white rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold font-['Poppins'] hover:border-sky-300 hover:text-sky-500 transition-all cursor-pointer">
+                        <CalendarDays className="w-4 h-4" />
+                        Voir disponibilité
+                      </button>
+                      <Link href={`/location/${eq.slug}`}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-900 text-base font-bold font-['Poppins'] hover:bg-sky-400 hover:text-white hover:border-sky-400 transition-all group/btn">
+                        Réserver
+                        <ArrowUpRight className="w-4 h-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
+                      </Link>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -137,6 +199,31 @@ export default function LocationPage() {
         </div>
       </main>
       <Footer />
+
+      {calendarFor ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", background: "rgba(0,0,0,0.6)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setCalendarFor(null); }}
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white p-2">
+            <div className="flex items-center justify-between px-4 pt-4">
+              <p className="text-gray-900 text-lg font-bold font-['Poppins']">{calendarFor.nom}</p>
+              <button type="button" onClick={() => setCalendarFor(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <AvailabilityCalendar
+                reservedDates={calendarFor.reservedDates}
+                title="Disponibilités"
+                className="bg-white p-2"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

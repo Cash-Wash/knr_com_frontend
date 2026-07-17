@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -8,7 +8,40 @@ import { motion } from "framer-motion";
 import { ArrowLeft, User, Calendar, Clock } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { articles } from "@/lib/articles-data";
+import { getApiBase, resolveMediaUrl, formatRelativeDate } from "@/lib/api";
+
+type Article = {
+  slug: string;
+  categorie: string;
+  titre: string;
+  content: string;
+  auteur: string;
+  createdAt: string;
+  tempsLecture: string;
+  thumbnail: string;
+};
+
+function mapArticle(a: {
+  slug: string;
+  category?: string;
+  titre: string;
+  content: string;
+  author?: string;
+  createdAt?: string;
+  readTime?: string;
+  thumbnail?: string;
+}): Article {
+  return {
+    slug: a.slug,
+    categorie: a.category ?? "",
+    titre: a.titre,
+    content: a.content,
+    auteur: a.author ?? "",
+    createdAt: a.createdAt ?? "",
+    tempsLecture: a.readTime ?? "",
+    thumbnail: a.thumbnail ?? "",
+  };
+}
 
 type MotionDivProps = import("framer-motion").MotionProps & {
   className?: string; style?: React.CSSProperties;
@@ -40,8 +73,46 @@ const socialShareIcons = [
 
 export default function BlogDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const article = articles.find((a) => a.slug === slug);
-  const similaires = articles.filter((a) => a.slug !== slug).slice(0, 3);
+  const [article, setArticle] = useState<Article | null>(null);
+  const [similaires, setSimilaires] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const base = getApiBase();
+        const [detailRes, listRes] = await Promise.all([
+          fetch(`${base}/api/public/articles/${slug}`),
+          fetch(`${base}/api/public/articles`),
+        ]);
+        setArticle(detailRes.ok ? mapArticle(await detailRes.json()) : null);
+        if (listRes.ok) {
+          const list = await listRes.json();
+          if (Array.isArray(list)) {
+            setSimilaires(list.filter((a: { slug: string }) => a.slug !== slug).slice(0, 3).map(mapArticle));
+          }
+        }
+      } catch {
+        setArticle(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <main className="min-h-screen flex items-center justify-center bg-white">
+          <p className="text-gray-500 text-xl font-['Inter']">Chargement...</p>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   if (!article) {
     return (
@@ -66,7 +137,7 @@ export default function BlogDetailPage() {
         {/* ── HERO ── */}
         <section className="relative w-full min-h-[400px] md:min-h-[480px] overflow-hidden">
           <div className="absolute inset-0">
-            <Image src={article.img} alt={article.titre} fill className="object-cover object-center" priority />
+            <Image src={resolveMediaUrl(article.thumbnail) || "/images/emission.jpg"} alt={article.titre} fill className="object-cover object-center" priority />
             <div className="absolute inset-0 bg-gradient-to-b from-stone-500/60 to-black/60" />
           </div>
 
@@ -108,7 +179,7 @@ export default function BlogDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-white/90" />
-                  <span className="text-white/90 text-sm font-normal font-['Inter']">{article.dateISO}</span>
+                  <span className="text-white/90 text-sm font-normal font-['Inter']">{formatRelativeDate(article.createdAt)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-white/90" />
@@ -126,43 +197,11 @@ export default function BlogDetailPage() {
             {/* ── LEFT: Article content ── */}
             <motion.div {...fadeUp()} className="flex-1 min-w-0 flex flex-col gap-6">
 
-              {/* Intro */}
-              <p className="text-gray-900 text-base font-medium font-['Inter'] leading-7">
-                {article.contenu.intro}
-              </p>
-
-              {/* Sections */}
-              {article.contenu.sections.map((section, i) => (
-                <motion.div key={i} {...fadeUp(i * 0.08)} className="flex flex-col gap-3">
-                  {section.sousTitre && (
-                    <h2 className="text-gray-900 text-sm font-bold font-['Inter'] leading-6">
-                      {section.sousTitre}
-                    </h2>
-                  )}
-                  <p className="text-gray-900 text-sm font-normal font-['Inter'] leading-6">
-                    {section.paragraphe}
-                  </p>
-                </motion.div>
-              ))}
-
-              {/* Citation */}
-              {article.contenu.citation && (
-                <motion.blockquote
-                  {...fadeUp(0.15)}
-                  className="border-l-4 border-sky-400 bg-cyan-50 rounded-tr-lg rounded-br-lg px-5 py-4"
-                >
-                  <p className="text-zinc-950 text-sm font-normal font-['Inter'] leading-6">
-                    {article.contenu.citation}
-                  </p>
-                </motion.blockquote>
-              )}
-
-              {/* Conclusion */}
-              {article.contenu.conclusion && (
-                <motion.p {...fadeUp(0.2)} className="text-gray-900 text-sm font-normal font-['Inter'] leading-6">
-                  {article.contenu.conclusion}
-                </motion.p>
-              )}
+              {/* Contenu */}
+              <div
+                className="prose prose-sm max-w-none text-gray-900 font-['Inter'] leading-7"
+                dangerouslySetInnerHTML={{ __html: article.content }}
+              />
 
               {/* Share */}
               <motion.div {...fadeUp(0.25)} className="flex flex-col gap-4 pt-4 border-t border-orange-100">
@@ -203,7 +242,7 @@ export default function BlogDetailPage() {
                       >
                         <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                           <Image
-                            src={sim.img}
+                            src={resolveMediaUrl(sim.thumbnail) || "/images/emission.jpg"}
                             alt={sim.titre}
                             fill
                             className="object-cover group-hover:scale-110 transition-transform duration-300"
@@ -214,7 +253,7 @@ export default function BlogDetailPage() {
                             {sim.titre}
                           </p>
                           <p className="text-zinc-600 text-[10px] font-normal font-['Inter'] mt-1">
-                            {sim.dateISO}
+                            {formatRelativeDate(sim.createdAt)}
                           </p>
                         </div>
                       </Link>

@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, ChevronDown } from "lucide-react";
+import { X, Check, ChevronDown, AlertTriangle } from "lucide-react";
+import { getApiBase } from "@/lib/api";
 
 interface StudioBookingModalProps {
   isOpen: boolean;
@@ -10,7 +11,24 @@ interface StudioBookingModalProps {
   forfaitInitial?: string;
 }
 
-const forfaits = [
+type Forfait = { label: string; value: string; prix: number; duree: string };
+
+type BookingForm = {
+  date: string;
+  heure: string;
+  forfait: string;
+  typeProjet: string;
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone: string;
+  entreprise: string;
+  description: string;
+  modePaiement: string;
+  reference: string;
+};
+
+const forfaits: Forfait[] = [
   { label: "Demi-journée (4h)", value: "demi", prix: 75000, duree: "4h" },
   { label: "Journée complète (8h)", value: "journee", prix: 125000, duree: "8h" },
   { label: "Forfait week-end (16h)", value: "weekend", prix: 200000, duree: "16h" },
@@ -37,9 +55,9 @@ export default function StudioBookingModal({ isOpen, onClose, forfaitInitial }: 
   const [step, setStep] = useState(1);
   const [dir, setDir] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [checkAnimDone, setCheckAnimDone] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<BookingForm>({
     date: "",
     heure: "09:00",
     forfait: forfaitInitial || "demi",
@@ -60,23 +78,63 @@ export default function StudioBookingModal({ isOpen, onClose, forfaitInitial }: 
     if (isOpen) {
       setStep(1);
       setDir(1);
-      setCheckAnimDone(false);
+      setSubmitError(null);
+      setForm((f) => ({
+        date: "",
+        heure: "09:00",
+        forfait: forfaitInitial || "demi",
+        typeProjet: "Podcast",
+        prenom: f.prenom,
+        nom: f.nom,
+        email: f.email,
+        telephone: f.telephone,
+        entreprise: f.entreprise,
+        description: "",
+        modePaiement: "",
+        reference: "",
+      }));
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; };
-  }, [isOpen]);
+  }, [isOpen, forfaitInitial]);
 
-  const goNext = () => {
+  const goNext = async () => {
     if (step === 3) {
       setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
+      setSubmitError(null);
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/studio-bookings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: form.date,
+            heure: form.heure,
+            forfait: form.forfait,
+            typeProjet: form.typeProjet,
+            prenom: form.prenom,
+            nom: form.nom,
+            email: form.email,
+            telephone: form.telephone,
+            entreprise: form.entreprise,
+            description: form.description,
+            modePaiement: form.modePaiement,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setSubmitError(payload?.error || "Échec de l'envoi de la demande. Réessayez.");
+          return;
+        }
+        setForm((f) => ({ ...f, reference: payload.reference ?? "" }));
         setDir(1);
         setStep(4);
-        setTimeout(() => setCheckAnimDone(true), 600);
-      }, 2000);
+      } catch {
+        setSubmitError("Impossible de contacter le serveur. Réessayez.");
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     setDir(1);
@@ -347,7 +405,14 @@ export default function StudioBookingModal({ isOpen, onClose, forfaitInitial }: 
                         {form.modePaiement === "virement" && (
                           <div className="p-4 bg-blue-50 rounded-xl border border-sky-200">
                             <p className="text-sky-700 text-sm font-bold font-['Inter'] mb-1">Coordonnées bancaires</p>
-                            <p className="text-sky-600 text-xs font-['Inter']">IBAN : BJ66 BJ0010002 0000000000000<br />BIC : AFRIBJBJ<br />Référence : KNR-STUDIO-{Math.floor(Math.random() * 99999)}</p>
+                            <p className="text-sky-600 text-xs font-['Inter']">IBAN : BJ66 BJ0010002 0000000000000<br />BIC : AFRIBJBJ<br />La référence de paiement vous sera communiquée après confirmation de la demande.</p>
+                          </div>
+                        )}
+
+                        {submitError && (
+                          <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl border border-red-200">
+                            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            <p className="text-red-600 text-xs font-['Inter']">{submitError}</p>
                           </div>
                         )}
 
@@ -430,10 +495,17 @@ export default function StudioBookingModal({ isOpen, onClose, forfaitInitial }: 
                         transition={{ delay: 0.6, duration: 0.5 }}
                         className="flex flex-col gap-3"
                       >
-                        <h3 className="text-gray-900 text-3xl font-bold font-['Poppins']">Réservation confirmée !</h3>
+                        <h3 className="text-gray-900 text-3xl font-bold font-['Poppins']">Demande envoyée !</h3>
                         <p className="text-gray-600 text-base font-['Inter'] max-w-md">
-                          Votre studio est réservé. Un email de confirmation a été envoyé à <span className="text-sky-400 font-bold">{form.email}</span>.
+                          Votre demande de réservation a bien été transmise. Notre équipe vous recontactera au{" "}
+                          <span className="text-sky-400 font-bold">{form.telephone}</span> ou par email à{" "}
+                          <span className="text-sky-400 font-bold">{form.email}</span> pour la confirmer.
                         </p>
+                        {form.reference && (
+                          <p className="text-gray-400 text-xs font-['Inter']">
+                            Référence de votre demande : <span className="font-bold text-gray-600">{form.reference}</span>
+                          </p>
+                        )}
                       </motion.div>
 
                       <motion.div
@@ -484,7 +556,7 @@ export default function StudioBookingModal({ isOpen, onClose, forfaitInitial }: 
   );
 }
 
-function Recap({ form, forfaitActuel }: { form: any; forfaitActuel: any }) {
+function Recap({ form, forfaitActuel }: { form: BookingForm; forfaitActuel: Forfait }) {
   return (
     <div className="w-full lg:w-72 flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4 h-fit">
       <h4 className="text-gray-900 text-base font-bold font-['Inter']">Récapitulatif</h4>

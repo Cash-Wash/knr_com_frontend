@@ -1,13 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Search, SlidersHorizontal, Play } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { emissions } from "@/lib/emissions-data";
+import { getApiBase, resolveMediaUrl } from "@/lib/api";
+
+type Emission = {
+  slug: string;
+  categorie: string;
+  titre: string;
+  sousTitre: string;
+  thumbnail: string;
+  episodes: number;
+};
 
 type MotionDivProps = import("framer-motion").MotionProps & {
   className?: string; style?: React.CSSProperties;
@@ -24,11 +33,30 @@ const categories = ["Toutes", "Technologie", "Culture", "Business", "Société",
 export default function EmissionsPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Toutes");
+  const [emissions, setEmissions] = useState<Emission[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/emissions`);
+        if (response.ok) {
+          const payload = await response.json();
+          if (Array.isArray(payload)) setEmissions(payload);
+        }
+      } catch {
+        setEmissions([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const filtered = emissions.filter((e) => {
     const matchCat = activeCategory === "Toutes" || e.categorie === activeCategory;
     const matchSearch = e.titre.toLowerCase().includes(search.toLowerCase()) ||
-      e.sousTitre.toLowerCase().includes(search.toLowerCase());
+      (e.sousTitre ?? "").toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
 
@@ -85,7 +113,9 @@ export default function EmissionsPage() {
 
         {/* GRID */}
         <div className="w-full max-w-[1558px] mx-auto px-5 sm:px-8 pb-20 mt-6">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">Chargement...</div>
+          ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-gray-500 text-xl font-['Poppins']">Aucune émission trouvée.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -95,7 +125,7 @@ export default function EmissionsPage() {
                   style={{ aspectRatio: "16/9" }}
                 >
                   <Link href={`/emissions/${emission.slug}`} className="block w-full h-full">
-                    <Image src={emission.img} alt={emission.titre} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <Image src={resolveMediaUrl(emission.thumbnail) || "/images/webtv1.png"} alt={emission.titre} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
                     {/* Dark overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 

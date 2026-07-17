@@ -9,7 +9,7 @@ import { Menu, X } from "lucide-react";
 
 const navLinks = [
   { href: "/", label: "Accueil" },
-  { href: "/studio", label: "À propos" },
+  { href: "/about", label: "À propos" },
   { href: "/webtv", label: "Web TV" },
   { href: "/formations", label: "Formations" },
   { href: "/emissions", label: "Emissions" },
@@ -94,9 +94,12 @@ export default function Navbar() {
         </div>
 
         {/* Desktop CTA */}
-        <button className="hidden md:flex h-14 px-7 bg-sky-400 rounded-[99px] outline outline-2 outline-white text-white text-base font-medium font-['Inter'] leading-6 hover:bg-sky-500 transition-all hover:scale-105 active:scale-95 cursor-pointer items-center">
-          Collaborer avec nous
-        </button>
+        <Link
+          href="/auth/login"
+          className="hidden md:flex h-14 px-7 bg-sky-400 rounded-[99px] outline outline-2 outline-white text-white text-base font-medium font-['Inter'] leading-6 hover:bg-sky-500 transition-all hover:scale-105 active:scale-95 cursor-pointer items-center"
+        >
+          Se connecter
+        </Link>
 
         {/* Mobile hamburger */}
         <button
@@ -158,15 +161,19 @@ export default function Navbar() {
             </div>
 
             {/* Mobile CTA */}
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ delay: 0.3, duration: 0.35 }}
-              className="w-full py-4 bg-sky-400 rounded-2xl text-white text-lg font-semibold font-['Poppins'] hover:bg-sky-500 transition-colors"
             >
-              Collaborer avec nous
-            </motion.button>
+              <Link
+                href="/auth/login"
+                className="flex w-full items-center justify-center py-4 bg-sky-400 rounded-2xl text-white text-lg font-semibold font-['Poppins'] hover:bg-sky-500 transition-colors"
+              >
+                Se connecter
+              </Link>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

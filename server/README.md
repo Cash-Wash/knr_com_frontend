@@ -1,5 +1,9 @@
 Scaffold backend pour KNR COM
 
+
+* Email : `contact@knr-expertises.com`
+* Mot de passe : `KnrExpert2026!Secure`
+
 Instructions rapides:
 
 1. Se placer dans le dossier `server`:
@@ -21,6 +25,7 @@ npm run dev
 ```
 
 Endpoints exposés (scaffold):
+
 - GET /api/users
 - GET /api/emissions
 - GET /api/reunions

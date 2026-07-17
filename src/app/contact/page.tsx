@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { MapPin, Phone, Mail, Send } from "lucide-react";
+import { AlertTriangle, MapPin, Phone, Mail, Send } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { getApiBase } from "@/lib/api";
 
 type MotionDivProps = import("framer-motion").MotionProps & {
     className?: string;
@@ -21,6 +23,8 @@ const subjects = [
     "Demande générale",
     "Publicité & sponsoring",
     "Réservation Studio Podcast",
+    "Réservation d'équipement",
+    "Inscription à une formation",
     "Partenariat Média",
     "Autre",
 ];
@@ -45,21 +49,78 @@ const socialIcons = [
 ];
 
 export default function ContactPage() {
-    const [form, setForm] = useState({
-        nom: "",
-        email: "",
-        sujet: "Demande générale",
-        message: "",
-    });
+    return (
+        <Suspense fallback={null}>
+            <ContactForm />
+        </Suspense>
+    );
+}
+
+function buildInitialForm(searchParams: URLSearchParams) {
+    const ctx = searchParams.get("context");
+    const nom = searchParams.get("nom");
+    const base = { nom: "", email: "", sujet: "Demande générale", message: "" };
+
+    if (ctx === "location") {
+        return {
+            ...base,
+            sujet: "Réservation d'équipement",
+            message: `Bonjour, je souhaite réserver l'équipement « ${nom ?? ""} ». Merci de me recontacter pour finaliser ma demande.`,
+        };
+    }
+    if (ctx === "formation") {
+        return {
+            ...base,
+            sujet: "Inscription à une formation",
+            message: `Bonjour, je souhaite m'inscrire à la formation « ${nom ?? ""} ». Merci de me recontacter pour finaliser mon inscription.`,
+        };
+    }
+    return base;
+}
+
+function ContactForm() {
+    const searchParams = useSearchParams();
+    const [form, setForm] = useState(() => buildInitialForm(searchParams));
+    const context = searchParams.get("context");
+    const contextId = searchParams.get("contextId");
     const [submitted, setSubmitted] = useState(false);
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitted(true);
+        setSending(true);
+        setError(null);
+        try {
+            const response = await fetch(`${getApiBase()}/api/public/messages`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: form.nom,
+                    email: form.email,
+                    subject: form.sujet,
+                    message: form.message,
+                    context,
+                    contextId,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                setError(payload?.error || "Échec de l'envoi. Réessayez.");
+                return;
+            }
+
+            setSubmitted(true);
+        } catch {
+            setError("Impossible de contacter le serveur. Réessayez.");
+        } finally {
+            setSending(false);
+        }
     };
 
     return (
@@ -190,13 +251,21 @@ export default function ContactPage() {
                                         />
                                     </div>
 
+                                    {error ? (
+                                        <div className="flex items-center gap-2 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+                                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                            {error}
+                                        </div>
+                                    ) : null}
+
                                     {/* Submit */}
                                     <div>
                                         <button
                                             type="submit"
-                                            className="flex items-center gap-2 h-12 px-7 bg-sky-400 rounded-md text-white text-sm font-medium font-['Inter'] shadow-md hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+                                            disabled={sending}
+                                            className="flex items-center gap-2 h-12 px-7 bg-sky-400 rounded-md text-white text-sm font-medium font-['Inter'] shadow-md hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                                         >
-                                            Envoyer le message
+                                            {sending ? "Envoi..." : "Envoyer le message"}
                                             <Send className="w-4 h-4" />
                                         </button>
                                     </div>

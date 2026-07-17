@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   Plus, Pencil, Trash2, ChevronDown, Search,
-  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight,
+  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight, ImageIcon,
 } from "lucide-react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminNavbar from "@/components/admin/AdminNavbar";
@@ -15,6 +15,52 @@ import ConfirmDeleteModal from "@/components/admin/ui/ConfirmDeleteModal";
 import StatusToggle from "@/components/admin/ui/StatusToggle";
 import ToastStack from "@/components/admin/ui/Toast";
 import { useToast } from "@/hooks/useToast";
+import { getApiBase, authHeaders, formatRelativeDate, resolveMediaUrl } from "@/lib/api";
+
+type AdminArticle = Article & { createdAt?: string };
+
+function fromApi(item: {
+  id: string;
+  titre: string;
+  slug: string;
+  excerpt?: string;
+  readTime?: string;
+  featured?: boolean;
+  content: string;
+  status?: string;
+  author?: string;
+  category?: string;
+  createdAt?: string;
+  thumbnail?: string;
+}): AdminArticle {
+  return {
+    id: item.id,
+    titre: item.titre,
+    slug: item.slug,
+    categorie: item.category ?? "",
+    extrait: item.excerpt ?? "",
+    auteur: item.author ?? "",
+    tempsLecture: item.readTime ?? "",
+    img: item.thumbnail ?? "",
+    featured: !!item.featured,
+    status: (item.status as ArticleStatus) ?? "draft",
+    content: item.content,
+    createdAt: item.createdAt,
+  };
+}
+
+function toApiPayload(data: Omit<Article, "id" | "auteur">) {
+  return {
+    titre: data.titre,
+    content: data.content,
+    excerpt: data.extrait,
+    readTime: data.tempsLecture,
+    featured: data.featured,
+    category: data.categorie,
+    thumbnail: data.img,
+    status: data.status,
+  };
+}
 
 // ─── SIDEBAR COLLAPSE PREFERENCE (persisted, hydration-safe) ─────────────────
 const SIDEBAR_COLLAPSE_KEY = "knr-admin-sidebar-collapsed";
@@ -35,43 +81,14 @@ function setSidebarCollapsedPreference(next: boolean) {
   sidebarCollapseListeners.forEach((listener) => listener());
 }
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
-const MOCK_CATEGORIES: ArticleCategory[] = [
-  { id: "1", name: "Technologie",     article_count: 2 },
-  { id: "2", name: "Entrepreneuriat", article_count: 3 },
-  { id: "3", name: "Culture",         article_count: 2 },
-  { id: "4", name: "Société",         article_count: 1 },
-];
-
-const MOCK_ARTICLES: Article[] = [
-  {
-    id: "1", slug: "economie-numerique-afrique-2025", categorie: "Technologie",
-    titre: "L'économie numérique en Afrique : Bilan et Perspectives 2025",
-    extrait: "Analyse complète des tendances qui vont façonner le paysage numérique africain.",
-    auteur: "Jean-Marc Diop", date: "Il y a 2 jours", dateISO: "12 Octobre 2023",
-    tempsLecture: "5 min de lecture", img: "/images/blog/article-featured.jpg",
-    featured: true, status: "published",
-    contenu: { intro: "Alors que le continent connaît une croissance démographique sans précédent…", sections: [{ sousTitre: "L'essor des Fintech", paragraphe: "Lorem ipsum dolor sit amet…" }], citation: "\"La technologie n'est pas une fin en soi.\"", conclusion: "L'Afrique de l'Ouest a tous les atouts." },
-  },
-  {
-    id: "2", slug: "innovation-frugale-premiere-partie", categorie: "Entrepreneuriat",
-    titre: "Innovation frugale : Faire mieux avec moins — Première Partie",
-    extrait: "Comment les entrepreneurs africains réinventent les modèles économiques.",
-    auteur: "Amina Sow", date: "Il y a 3 jours", dateISO: "15 Oct 2023",
-    tempsLecture: "4 min de lecture", img: "/images/blog/article-1.jpg",
-    featured: false, status: "published",
-    contenu: { intro: "L'innovation frugale désigne la capacité à créer des solutions efficaces…", sections: [{ sousTitre: "Définir l'innovation frugale", paragraphe: "Lorem ipsum…" }] },
-  },
-  {
-    id: "3", slug: "femmes-entrepreneures-afrique", categorie: "Culture",
-    titre: "Femmes entrepreneures : les pionnières qui redessinent l'Afrique",
-    extrait: "Elles dirigent des entreprises, créent des emplois et inspirent des générations.",
-    auteur: "Fatoumata Traoré", date: "Il y a 1 semaine", dateISO: "8 Oct 2023",
-    tempsLecture: "7 min de lecture", img: "/images/blog/article-3.jpg",
-    featured: false, status: "draft",
-    contenu: { intro: "À travers le continent, des femmes extraordinaires brisent les plafonds de verre…", sections: [{ sousTitre: "Le financement, premier obstacle", paragraphe: "Accéder au capital reste le défi majeur…" }] },
-  },
-];
+function buildCategories(list: AdminArticle[]): ArticleCategory[] {
+  const names = ["Technologie", "Entrepreneuriat", "Culture", "Société"];
+  return names.map((name, i) => ({
+    id: String(i + 1),
+    name,
+    article_count: list.filter((a) => a.categorie === name).length,
+  }));
+}
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 8;
@@ -91,14 +108,14 @@ export default function AdminBlogPage() {
 
   const toggleSidebarCollapse = () => setSidebarCollapsedPreference(!isSidebarCollapsed);
 
-  const [articles, setArticles] = useState<Article[]>(MOCK_ARTICLES);
-  const [categories, setCategories] = useState<ArticleCategory[]>(MOCK_CATEGORIES);
-  const [loadingData] = useState(false);
+  const [articles, setArticles] = useState<AdminArticle[]>([]);
+  const [categories, setCategories] = useState<ArticleCategory[]>(() => buildCategories([]));
+  const [loadingData, setLoadingData] = useState(true);
 
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
-  const [articleToEdit, setArticleToEdit] = useState<Article | null>(null);
+  const [articleToEdit, setArticleToEdit] = useState<AdminArticle | null>(null);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-  const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
+  const [articleToDelete, setArticleToDelete] = useState<AdminArticle | null>(null);
   const [deletingArticle, setDeletingArticle] = useState(false);
   const [catToDelete, setCatToDelete] = useState<ArticleCategory | null>(null);
   const [deletingCat, setDeletingCat] = useState(false);
@@ -111,6 +128,27 @@ export default function AdminBlogPage() {
 
   const { toasts, add: addToast, dismiss } = useToast();
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/articles`, { headers: authHeaders() });
+        if (response.ok) {
+          const payload = await response.json();
+          if (Array.isArray(payload)) {
+            const mapped = payload.map(fromApi);
+            setArticles(mapped);
+            setCategories(buildCategories(mapped));
+          }
+        }
+      } catch {
+        // keep empty list
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    load();
+  }, []);
+
   const filtered = articles.filter((a) => {
     const matchS = a.titre.toLowerCase().includes(search.toLowerCase()) || a.auteur.toLowerCase().includes(search.toLowerCase());
     const matchC = catFilter === "all" || a.categorie === catFilter;
@@ -121,19 +159,32 @@ export default function AdminBlogPage() {
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const resetPage = useCallback(() => setPage(1), []);
 
-  const handleToggle = (article: Article) => {
+  const handleToggle = async (article: AdminArticle) => {
     setTogglingId(article.id);
-    setTimeout(() => {
-      setArticles((prev) => prev.map((a) => a.id === article.id ? { ...a, status: a.status === "published" ? "draft" : "published" } : a));
+    try {
+      const response = await fetch(`${getApiBase()}/api/articles/${article.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ status: article.status === "published" ? "draft" : "published" }),
+      });
+      if (response.ok) {
+        const updated = fromApi(await response.json());
+        setArticles((prev) => prev.map((a) => (a.id === article.id ? updated : a)));
+      }
+    } finally {
       setTogglingId(null);
-    }, 400);
+    }
   };
 
   const handleDeleteArticle = async () => {
     if (!articleToDelete) return;
     setDeletingArticle(true);
     const tid = addToast("loading", "Suppression…");
-    await new Promise((r) => setTimeout(r, 600));
+    try {
+      await fetch(`${getApiBase()}/api/articles/${articleToDelete.id}`, { method: "DELETE", headers: authHeaders() });
+    } catch {
+      // fallback below still removes it locally
+    }
     setArticles((prev) => prev.filter((a) => a.id !== articleToDelete.id));
     dismiss(tid);
     addToast("success", `« ${articleToDelete.titre} » supprimé.`);
@@ -157,15 +208,28 @@ export default function AdminBlogPage() {
     setDeletingCat(false);
   };
 
-  const handleSubmitArticle = (data: Omit<Article, "id">) => {
-    if (articleToEdit) {
-      setArticles((prev) => prev.map((a) => a.id === articleToEdit.id ? { ...a, ...data } : a));
-      addToast("success", `Article « ${data.titre} » mis à jour.`);
-      setArticleToEdit(null);
-    } else {
-      const created: Article = { ...data, id: Date.now().toString() };
-      setArticles((prev) => [created, ...prev]);
-      addToast("success", `Article « ${data.titre} » ${data.status === "published" ? "publié" : "enregistré"}.`);
+  const handleSubmitArticle = async (data: Omit<Article, "id" | "auteur">) => {
+    try {
+      const response = await fetch(`${getApiBase()}/api/articles${articleToEdit ? `/${articleToEdit.id}` : ""}`, {
+        method: articleToEdit ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(toApiPayload(data)),
+      });
+      if (!response.ok) {
+        addToast("error", "Échec de l'enregistrement.");
+        return;
+      }
+      const saved = fromApi(await response.json());
+      if (articleToEdit) {
+        setArticles((prev) => prev.map((a) => (a.id === articleToEdit.id ? saved : a)));
+        addToast("success", `Article « ${saved.titre} » mis à jour.`);
+        setArticleToEdit(null);
+      } else {
+        setArticles((prev) => [saved, ...prev]);
+        addToast("success", `Article « ${saved.titre} » ${saved.status === "published" ? "publié" : "enregistré"}.`);
+      }
+    } catch {
+      addToast("error", "Impossible de contacter le serveur.");
     }
   };
 
@@ -266,7 +330,7 @@ export default function AdminBlogPage() {
                 <th className="px-4 py-3.5 sm:px-5">Titre</th>
                 <th className="px-4 py-3.5 sm:px-5">Auteur</th>
                 <th className="px-4 py-3.5 sm:px-5">Catégorie</th>
-                <th className="px-4 py-3.5 sm:px-5">Date</th>
+                <th className="px-4 py-3.5 sm:px-5">Enregistré</th>
                 <th className="px-4 py-3.5 sm:px-5">Lecture</th>
                 <th className="px-4 py-3.5 sm:px-5">À la une</th>
                 <th className="px-4 py-3.5 sm:px-5">Statut</th>
@@ -282,9 +346,23 @@ export default function AdminBlogPage() {
                 const cs = catStyle(article.categorie);
                 return (
                   <tr key={article.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3.5 sm:px-5 max-w-[240px]">
-                      <p className="font-semibold text-stone-800 line-clamp-1">{article.titre}</p>
-                      <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{article.slug}</p>
+                    <td className="px-4 py-3.5 sm:px-5 max-w-[280px]">
+                      <div className="flex items-center gap-3">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-stone-100 bg-stone-50">
+                          {article.img ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={resolveMediaUrl(article.img)} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-stone-300">
+                              <ImageIcon size={16} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-stone-800 line-clamp-1">{article.titre}</p>
+                          <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{article.slug}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap">{article.auteur}</td>
                     <td className="px-4 py-3.5 sm:px-5">
@@ -293,7 +371,7 @@ export default function AdminBlogPage() {
                         <Tag size={9} /> {article.categorie}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 sm:px-5 text-stone-500 whitespace-nowrap text-xs">{article.dateISO}</td>
+                    <td className="px-4 py-3.5 sm:px-5 text-stone-500 whitespace-nowrap text-xs">{formatRelativeDate(article.createdAt)}</td>
                     <td className="px-4 py-3.5 sm:px-5 text-stone-500 whitespace-nowrap text-xs">{article.tempsLecture}</td>
                     <td className="px-4 py-3.5 sm:px-5">
                       {article.featured ? (

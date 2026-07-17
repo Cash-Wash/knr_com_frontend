@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -8,7 +8,59 @@ import { motion } from "framer-motion";
 import { ArrowLeft, AlertTriangle, Shield } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { equipements } from "@/lib/equipements-data";
+import { getApiBase, resolveMediaUrl } from "@/lib/api";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+
+type Equipement = {
+  id: string;
+  slug: string;
+  categorie: string;
+  nom: string;
+  prix: string;
+  disponible: boolean;
+  caution: string;
+  img: string;
+  images: string[];
+  specs: { label: string; valeur: string }[];
+  description: string;
+  conditions: string[];
+  reservedDates: string[];
+};
+
+function mapEquipment(item: {
+  id: string;
+  slug?: string;
+  category?: string;
+  name: string;
+  tarifJour?: number;
+  status?: string;
+  caution?: string;
+  image?: string;
+  images?: string[];
+  specs?: { label: string; valeur: string }[];
+  description?: string;
+  conditions?: string[];
+  reservedDates?: string[];
+}): Equipement {
+  return {
+    id: item.id,
+    slug: item.slug ?? "",
+    categorie: item.category ?? "",
+    nom: item.name,
+    prix: item.tarifJour ? `${item.tarifJour.toLocaleString("fr-FR")} FCFA` : "Sur devis",
+    disponible: item.status === "AVAILABLE",
+    caution: item.caution ?? "",
+    img: resolveMediaUrl(item.image) || "",
+    images:
+      Array.isArray(item.images) && item.images.length > 0
+        ? item.images.map((src) => resolveMediaUrl(src) || src)
+        : [resolveMediaUrl(item.image) || "/images/equipement.jpg"],
+    specs: Array.isArray(item.specs) ? item.specs : [],
+    description: item.description ?? "",
+    conditions: Array.isArray(item.conditions) ? item.conditions : [],
+    reservedDates: Array.isArray(item.reservedDates) ? item.reservedDates : [],
+  };
+}
 
 type MotionDivProps = import("framer-motion").MotionProps & { className?: string; style?: React.CSSProperties };
 const fadeUp = (delay = 0): MotionDivProps => ({
@@ -18,70 +70,38 @@ const fadeUp = (delay = 0): MotionDivProps => ({
   transition: { duration: 0.6, ease: "easeOut", delay },
 });
 
-const DAYS = ["L", "M", "M", "J", "V", "S", "D"];
-
-function MiniCalendar({ joursReserves }: { joursReserves: number[] }) {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  // Adjust: Monday = 0
-  const startOffset = (firstDay === 0 ? 6 : firstDay - 1);
-  const cells: (number | null)[] = [
-    ...Array(startOffset).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  return (
-    <div className="bg-white rounded-3xl shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center gap-2 mb-5">
-        <svg className="w-5 h-5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span className="text-gray-900 text-lg font-bold font-['Sora']">Disponibilités (30 jours)</span>
-      </div>
-
-      {/* Days header */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {DAYS.map((d, i) => (
-          <div key={i} className="text-center text-gray-400 text-xs font-bold font-['Inter']">{d}</div>
-        ))}
-      </div>
-
-      {/* Days grid */}
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((day, i) => {
-          if (!day) return <div key={i} />;
-          const reserved = joursReserves.includes(day);
-          return (
-            <div key={i}
-              className={`w-full aspect-square rounded-lg flex items-center justify-center text-sm font-medium font-['Inter'] ${reserved ? "bg-red-50 text-red-400" : "bg-green-50 text-green-700"}`}>
-              {day}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-6 mt-5 pt-4 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-100 border border-green-200" />
-          <span className="text-gray-900 text-sm font-['Inter']">Disponible</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-50 border border-red-200" />
-          <span className="text-gray-900 text-sm font-['Inter']">Réservé</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function EquipementDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const eq = equipements.find((e) => e.slug === slug);
+  const [eq, setEq] = useState<Equipement | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState(0);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${getApiBase()}/api/public/equipment/${slug}`);
+        setEq(response.ok ? mapEquipment(await response.json()) : null);
+      } catch {
+        setEq(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <main className="min-h-screen flex items-center justify-center bg-gray-50">
+          <p className="text-gray-500 text-xl font-['Poppins']">Chargement...</p>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   if (!eq) {
     return (
@@ -134,14 +154,14 @@ export default function EquipementDetailPage() {
               <div className="w-full lg:w-[480px] flex-shrink-0 flex flex-col gap-4">
                 {/* Main image */}
                 <div className="relative w-full h-72 sm:h-80 bg-gray-100 rounded-2xl overflow-hidden">
-                  <Image src={eq.images[selectedImg] || eq.img} alt={eq.nom} fill className="object-cover" />
+                  <Image src={resolveMediaUrl(eq.images[selectedImg]) || resolveMediaUrl(eq.img) || "/images/equipement.jpg"} alt={eq.nom} fill className="object-cover" />
                 </div>
                 {/* Thumbnails */}
                 <div className="flex gap-3">
                   {eq.images.map((img, i) => (
                     <button key={i} onClick={() => setSelectedImg(i)}
                       className={`relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all cursor-pointer ${selectedImg === i ? "border-sky-400 opacity-100" : "border-transparent opacity-70 hover:opacity-100"}`}>
-                      <Image src={img} alt={`${eq.nom} ${i + 1}`} fill className="object-cover" />
+                      <Image src={resolveMediaUrl(img)} alt={`${eq.nom} ${i + 1}`} fill className="object-cover" />
                     </button>
                   ))}
                 </div>
@@ -190,9 +210,12 @@ export default function EquipementDetailPage() {
                 </div>
 
                 {/* CTA */}
-                <button className="w-full h-14 bg-sky-400 rounded-xl text-white text-lg font-bold font-['Inter'] shadow-[0px_10px_15px_-3px_rgba(41,182,232,0.30)] hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer">
+                <Link
+                  href={`/contact?context=location&contextId=${eq.id}&nom=${encodeURIComponent(eq.nom)}`}
+                  className="flex w-full items-center justify-center h-14 bg-sky-400 rounded-xl text-white text-lg font-bold font-['Inter'] shadow-[0px_10px_15px_-3px_rgba(41,182,232,0.30)] hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+                >
                   Réserver maintenant
-                </button>
+                </Link>
               </div>
             </div>
           </motion.div>
@@ -227,7 +250,7 @@ export default function EquipementDetailPage() {
 
             {/* Right — Calendar */}
             <motion.div {...fadeUp(0.1)} className="w-full lg:w-96 lg:sticky lg:top-32 flex-shrink-0">
-              <MiniCalendar joursReserves={eq.joursReserves} />
+              <AvailabilityCalendar reservedDates={eq.reservedDates} title="Disponibilités" />
             </motion.div>
           </div>
         </div>

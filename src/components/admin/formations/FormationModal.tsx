@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Plus, Upload, X } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, X } from "lucide-react";
 import type { Formation } from "@/lib/formations-data";
 import type { FormationCategory } from "./types";
+import ImageUpload from "@/components/admin/ui/ImageUpload";
 
 interface FormationModalProps {
   isOpen: boolean;
@@ -22,7 +23,8 @@ function buildInitialForm(formation?: Formation | null) {
       sousTitre: formation.sousTitre, description: formation.description,
       prix: formation.prix, duree: formation.duree, niveau: formation.niveau,
       lieu: formation.lieu, debut: formation.debut, fin: formation.fin,
-      placesRestantes: formation.placesRestantes, joursClotureInscription: formation.joursClotureInscription,
+      placesRestantes: formation.placesRestantes,
+      clotureInscriptions: formation.clotureInscriptions ?? "",
       img: formation.img,
       formateurNom: formation.formateur.nom, formateurTitre: formation.formateur.titre,
       formateurBio: formation.formateur.bio, formateurPhoto: formation.formateur.photo,
@@ -31,7 +33,7 @@ function buildInitialForm(formation?: Formation | null) {
   return {
     slug: "", categorie: "", titre: "", sousTitre: "", description: "",
     prix: "", duree: "", niveau: "", lieu: "KNR COM, BENIN (Cotonou)", debut: "", fin: "",
-    placesRestantes: 0, joursClotureInscription: 0, img: "",
+    placesRestantes: 0, clotureInscriptions: "", img: "",
     formateurNom: "", formateurTitre: "", formateurBio: "", formateurPhoto: "",
   };
 }
@@ -79,7 +81,9 @@ export default function FormationModal({ isOpen, onClose, categories, formation,
         sousTitre: form.sousTitre, description: form.description,
         prix: form.prix, duree: form.duree, niveau: form.niveau,
         lieu: form.lieu, debut: form.debut, fin: form.fin,
-        placesRestantes: form.placesRestantes, joursClotureInscription: form.joursClotureInscription,
+        placesRestantes: form.placesRestantes,
+        joursClotureInscription: 0,
+        clotureInscriptions: form.clotureInscriptions,
         img: form.img,
         competences: competences.filter((c) => c.trim() !== ""),
         modules: modules
@@ -201,25 +205,15 @@ export default function FormationModal({ isOpen, onClose, categories, formation,
                 className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Jours avant clôture *</label>
-              <input required type="number" min={0} value={form.joursClotureInscription}
-                onChange={(e) => setForm((f) => ({ ...f, joursClotureInscription: Number(e.target.value) }))}
+              <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Date de clôture des inscriptions</label>
+              <input type="date" value={form.clotureInscriptions}
+                onChange={(e) => setForm((f) => ({ ...f, clotureInscriptions: e.target.value }))}
                 className="rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
             </div>
           </div>
 
           {/* Image */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Image (chemin)</label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={form.img} onChange={(e) => setForm((f) => ({ ...f, img: e.target.value }))}
-                placeholder="/images/formations/formation-1.jpg"
-                className="flex-1 rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
-              <button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition cursor-pointer">
-                <Upload size={13} /> Upload
-              </button>
-            </div>
-          </div>
+          <ImageUpload value={form.img} onChange={(url) => setForm((f) => ({ ...f, img: url }))} label="Image" />
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">
@@ -300,14 +294,7 @@ export default function FormationModal({ isOpen, onClose, categories, formation,
             <textarea required rows={2} value={form.formateurBio} onChange={(e) => setForm((f) => ({ ...f, formateurBio: e.target.value }))}
               placeholder="Bio du formateur *"
               className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition resize-none" />
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={form.formateurPhoto} onChange={(e) => setForm((f) => ({ ...f, formateurPhoto: e.target.value }))}
-                placeholder="/images/team/formateur-1.jpg"
-                className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition" />
-              <button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition cursor-pointer">
-                <Upload size={13} /> Upload photo
-              </button>
-            </div>
+            <ImageUpload value={form.formateurPhoto} onChange={(url) => setForm((f) => ({ ...f, formateurPhoto: url }))} label="Photo du formateur" />
           </div>
 
           {/* Actions */}

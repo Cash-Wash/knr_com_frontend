@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   Plus, Pencil, Trash2, ChevronDown, Search,
-  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight, Clock, Play,
+  Loader2, Tag, FolderPlus, ChevronLeft, ChevronRight, Clock, Play, Star, Radio, ListVideo, Tv2,
 } from "lucide-react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminNavbar from "@/components/admin/AdminNavbar";
 import EmissionModal from "@/components/admin/emissions/EmissionModal";
+import EpisodeManagerModal from "@/components/admin/emissions/EpisodeManagerModal";
 import type { EmissionCategory } from "@/components/admin/emissions/types";
 import { catStyle } from "@/components/admin/ui/categoryColors";
 import CategoryModal from "@/components/admin/ui/CategoryModal";
@@ -15,6 +16,57 @@ import ConfirmDeleteModal from "@/components/admin/ui/ConfirmDeleteModal";
 import ToastStack from "@/components/admin/ui/Toast";
 import { useToast } from "@/hooks/useToast";
 import { emissions as INITIAL_EMISSIONS, type Emission } from "@/lib/emissions-data";
+import { getApiBase, authHeaders, resolveMediaUrl } from "@/lib/api";
+
+type AdminEmission = Emission & { id?: string; featured?: boolean; status?: string };
+
+function fromApi(item: {
+  id: string;
+  titre: string;
+  slug: string;
+  sousTitre?: string;
+  categorie?: string;
+  animateur?: string;
+  episodes?: number;
+  duree?: string;
+  tags?: string[];
+  description?: string;
+  thumbnail?: string;
+  youtubeUrl?: string;
+  featured?: boolean;
+  status?: string;
+}): AdminEmission {
+  return {
+    id: item.id,
+    titre: item.titre,
+    slug: item.slug,
+    sousTitre: item.sousTitre ?? "",
+    categorie: item.categorie ?? "",
+    description: item.description ?? "",
+    episodes: item.episodes ?? 0,
+    duree: item.duree ?? "",
+    img: item.thumbnail ?? "",
+    videoUrl: item.youtubeUrl ?? "",
+    animateur: item.animateur ?? "",
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    featured: !!item.featured,
+    status: item.status ?? "draft",
+  };
+}
+
+function toApiPayload(data: AdminEmission) {
+  return {
+    titre: data.titre,
+    sousTitre: data.sousTitre,
+    categorie: data.categorie,
+    animateur: data.animateur,
+    duree: data.duree,
+    tags: data.tags,
+    description: data.description,
+    thumbnail: data.img,
+    youtubeUrl: data.videoUrl,
+  };
+}
 
 // ─── SIDEBAR COLLAPSE PREFERENCE (persisted, hydration-safe) ─────────────────
 const SIDEBAR_COLLAPSE_KEY = "knr-admin-sidebar-collapsed";
@@ -63,14 +115,15 @@ export default function AdminEmissionsPage() {
 
   const toggleSidebarCollapse = () => setSidebarCollapsedPreference(!isSidebarCollapsed);
 
-  const [emissions, setEmissions] = useState<Emission[]>(INITIAL_EMISSIONS);
+  const [emissions, setEmissions] = useState<AdminEmission[]>(INITIAL_EMISSIONS);
   const [categories, setCategories] = useState<EmissionCategory[]>(() => buildInitialCategories(INITIAL_EMISSIONS));
   const [loadingData] = useState(false);
 
   const [isEmissionModalOpen, setIsEmissionModalOpen] = useState(false);
-  const [emissionToEdit, setEmissionToEdit] = useState<Emission | null>(null);
+  const [emissionToEdit, setEmissionToEdit] = useState<AdminEmission | null>(null);
+  const [emissionForEpisodes, setEmissionForEpisodes] = useState<AdminEmission | null>(null);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-  const [emissionToDelete, setEmissionToDelete] = useState<Emission | null>(null);
+  const [emissionToDelete, setEmissionToDelete] = useState<AdminEmission | null>(null);
   const [deletingEmission, setDeletingEmission] = useState(false);
   const [catToDelete, setCatToDelete] = useState<EmissionCategory | null>(null);
   const [deletingCat, setDeletingCat] = useState(false);
@@ -80,6 +133,24 @@ export default function AdminEmissionsPage() {
   const [page, setPage] = useState(1);
 
   const { toasts, add: addToast, dismiss } = useToast();
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch(`${getApiBase()}/api/emissions`, { headers: authHeaders() });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (Array.isArray(payload) && payload.length > 0) {
+          const mapped = payload.map(fromApi);
+          setEmissions(mapped);
+          setCategories(buildInitialCategories(mapped));
+        }
+      } catch {
+        // keep static seed data
+      }
+    };
+    load();
+  }, []);
 
   const filtered = emissions.filter((e) => {
     const q = search.toLowerCase();
@@ -95,13 +166,53 @@ export default function AdminEmissionsPage() {
     if (!emissionToDelete) return;
     setDeletingEmission(true);
     const tid = addToast("loading", "Suppression…");
-    await new Promise((r) => setTimeout(r, 600));
+    if (emissionToDelete.id) {
+      try {
+        await fetch(`${getApiBase()}/api/emissions/${emissionToDelete.id}`, { method: "DELETE", headers: authHeaders() });
+      } catch {
+        // fallback below still removes it locally
+      }
+    }
     setEmissions((prev) => prev.filter((e) => e.slug !== emissionToDelete.slug));
     setCategories((prev) => prev.map((c) => c.name === emissionToDelete.categorie ? { ...c, count: Math.max(0, c.count - 1) } : c));
     dismiss(tid);
     addToast("success", `« ${emissionToDelete.titre} » supprimée.`);
     setEmissionToDelete(null);
     setDeletingEmission(false);
+  };
+
+  const setPublished = async (emission: AdminEmission, published: boolean) => {
+    if (!emission.id) return;
+    try {
+      const response = await fetch(`${getApiBase()}/api/emissions/${emission.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ status: published ? "published" : "draft" }),
+      });
+      if (!response.ok) return;
+      const updated = fromApi(await response.json());
+      setEmissions((prev) => prev.map((e) => (e.id === emission.id ? updated : e)));
+      addToast("success", published ? `« ${emission.titre} » publiée.` : `« ${emission.titre} » dépubliée.`);
+    } catch {
+      addToast("error", "Impossible de contacter le serveur.");
+    }
+  };
+
+  const setFeatured = async (emission: AdminEmission) => {
+    if (!emission.id) return;
+    try {
+      const response = await fetch(`${getApiBase()}/api/emissions/${emission.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ featured: true }),
+      });
+      if (!response.ok) return;
+      const updated = fromApi(await response.json());
+      setEmissions((prev) => prev.map((e) => (e.id === emission.id ? updated : { ...e, featured: false })));
+      addToast("success", `« ${emission.titre} » est maintenant à la une.`);
+    } catch {
+      addToast("error", "Impossible de contacter le serveur.");
+    }
   };
 
   const handleAddCategory = (name: string) => {
@@ -120,23 +231,38 @@ export default function AdminEmissionsPage() {
     setDeletingCat(false);
   };
 
-  const handleSubmitEmission = (data: Emission, originalSlug?: string) => {
+  const handleSubmitEmission = async (data: AdminEmission, originalSlug?: string) => {
+    const previous = originalSlug ? emissions.find((e) => e.slug === originalSlug) : undefined;
+    let saved: AdminEmission = data;
+
+    try {
+      const response = await fetch(`${getApiBase()}/api/emissions${previous?.id ? `/${previous.id}` : ""}`, {
+        method: previous?.id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(toApiPayload(data)),
+      });
+      if (response.ok) {
+        saved = fromApi(await response.json());
+      }
+    } catch {
+      // fallback below keeps the locally-entered data
+    }
+
     if (originalSlug) {
-      const previous = emissions.find((e) => e.slug === originalSlug);
-      setEmissions((prev) => prev.map((e) => e.slug === originalSlug ? data : e));
-      if (previous && previous.categorie !== data.categorie) {
+      setEmissions((prev) => prev.map((e) => (e.slug === originalSlug ? saved : e)));
+      if (previous && previous.categorie !== saved.categorie) {
         setCategories((prev) => prev.map((c) => {
           if (c.name === previous.categorie) return { ...c, count: Math.max(0, c.count - 1) };
-          if (c.name === data.categorie) return { ...c, count: c.count + 1 };
+          if (c.name === saved.categorie) return { ...c, count: c.count + 1 };
           return c;
         }));
       }
-      addToast("success", `Émission « ${data.titre} » mise à jour.`);
+      addToast("success", `Émission « ${saved.titre} » mise à jour.`);
       setEmissionToEdit(null);
     } else {
-      setEmissions((prev) => [data, ...prev]);
-      setCategories((prev) => prev.map((c) => c.name === data.categorie ? { ...c, count: c.count + 1 } : c));
-      addToast("success", `Émission « ${data.titre} » créée.`);
+      setEmissions((prev) => [saved, ...prev]);
+      setCategories((prev) => prev.map((c) => c.name === saved.categorie ? { ...c, count: c.count + 1 } : c));
+      addToast("success", `Émission « ${saved.titre} » créée.`);
     }
   };
 
@@ -241,9 +367,29 @@ export default function AdminEmissionsPage() {
                     const cs = catStyle(emission.categorie);
                     return (
                       <tr key={emission.slug} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3.5 sm:px-5 max-w-[240px]">
-                          <p className="font-semibold text-stone-800 line-clamp-1">{emission.titre}</p>
-                          <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{emission.slug}</p>
+                        <td className="px-4 py-3.5 sm:px-5 max-w-[280px]">
+                          <div className="flex items-center gap-3">
+                            <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-stone-100 bg-stone-50">
+                              {emission.img ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={resolveMediaUrl(emission.img)} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-stone-300">
+                                  <Tv2 size={16} />
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-semibold text-stone-800 line-clamp-1">{emission.titre}</p>
+                                {emission.featured ? <Star size={12} className="shrink-0 fill-amber-400 text-amber-400" /> : null}
+                              </div>
+                              <p className="text-xs text-stone-400 font-mono mt-0.5 line-clamp-1">{emission.slug}</p>
+                              <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${emission.status === "published" ? "bg-emerald-50 text-emerald-600" : "bg-stone-100 text-stone-500"}`}>
+                                {emission.status === "published" ? "Publiée" : "Brouillon"}
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-3.5 sm:px-5 text-stone-600 whitespace-nowrap">{emission.animateur}</td>
                         <td className="px-4 py-3.5 sm:px-5">
@@ -270,6 +416,24 @@ export default function AdminEmissionsPage() {
                         </td>
                         <td className="px-4 py-3.5 sm:px-5">
                           <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => setEmissionForEpisodes(emission)}
+                              disabled={!emission.id}
+                              className="rounded-lg p-2 text-stone-400 hover:bg-sky-50 hover:text-sky-500 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                              title="Gérer les épisodes">
+                              <ListVideo size={14} />
+                            </button>
+                            <button onClick={() => setFeatured(emission)}
+                              disabled={!emission.id || emission.featured}
+                              className="rounded-lg p-2 text-stone-400 hover:bg-amber-50 hover:text-amber-500 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                              title={emission.featured ? "Déjà à la une" : "Mettre à la une"}>
+                              <Star size={14} />
+                            </button>
+                            <button onClick={() => setPublished(emission, emission.status !== "published")}
+                              disabled={!emission.id}
+                              className="rounded-lg p-2 text-stone-400 hover:bg-emerald-50 hover:text-emerald-500 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                              title={emission.status === "published" ? "Dépublier" : "Publier"}>
+                              <Radio size={14} />
+                            </button>
                             <button onClick={() => { setEmissionToEdit(emission); setIsEmissionModalOpen(true); }}
                               className="rounded-lg p-2 text-stone-400 hover:bg-sky-50 hover:text-sky-500 transition cursor-pointer" title="Modifier">
                               <Pencil size={14} />
@@ -360,6 +524,16 @@ export default function AdminEmissionsPage() {
         categories={categories}
         emission={emissionToEdit}
         onSubmit={handleSubmitEmission}
+      />
+      <EpisodeManagerModal
+        isOpen={!!emissionForEpisodes}
+        onClose={() => setEmissionForEpisodes(null)}
+        emissionId={emissionForEpisodes?.id ?? null}
+        emissionTitre={emissionForEpisodes?.titre ?? ""}
+        onCountChange={(count) => {
+          if (!emissionForEpisodes) return;
+          setEmissions((prev) => prev.map((e) => (e.id === emissionForEpisodes.id ? { ...e, episodes: count } : e)));
+        }}
       />
       <CategoryModal
         key={isCatModalOpen ? "category-open" : "category-closed"}

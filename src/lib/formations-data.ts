@@ -12,6 +12,7 @@ export type Formation = {
   fin: string;
   placesRestantes: number;
   joursClotureInscription: number;
+  clotureInscriptions?: string;
   img: string;
   competences: string[];
   modules: { numero: number; label: string; titre: string; desc: string }[];

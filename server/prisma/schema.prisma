@@ -37,6 +37,13 @@ enum ProgrammeStatus {
   PAST
 }
 
+enum StudioBookingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -54,6 +61,7 @@ model User {
   articles   BlogArticle[]
   reunions   Reunion[]
   lives      Live[]
+  programmeItems ProgrammeItem[]
 
   @@map("users")
 }
@@ -61,7 +69,7 @@ model User {
 model Live {
   id         String     @id @default(cuid())
   titre      String
-  youtubeUrl String
+  youtubeUrl String?
   youtubeId  String?
   status     LiveStatus @default(SCHEDULED)
   viewers    Int        @default(0)
@@ -80,24 +88,60 @@ model Emission {
   id          String        @id @default(cuid())
   titre       String
   slug        String        @unique
+  sousTitre   String?
+  categorie   String?
+  animateur   String?
+  duree       String?
+  tags        Json?
   description String?       @db.LongText
   thumbnail   String?
   youtubeUrl  String?
   views       Int           @default(0)
+  featured    Boolean       @default(false)
   status      ContentStatus @default(DRAFT)
   publishedAt DateTime?
   authorId    String
   author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  episodes    Episode[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   @@map("emissions")
 }
 
+model Episode {
+  id         String   @id @default(cuid())
+  emissionId String
+  emission   Emission @relation(fields: [emissionId], references: [id], onDelete: Cascade)
+  titre      String?
+  youtubeUrl String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("episodes")
+}
+
+model Entrepreneur {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  bio       String?  @db.LongText
+  photo     String?
+  socials   Json?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("entrepreneurs")
+}
+
 model BlogArticle {
   id          String        @id @default(cuid())
   titre       String
   slug        String        @unique
+  excerpt     String?       @db.LongText
+  readTime    String?
+  featured    Boolean       @default(false)
   content     String        @db.LongText
   thumbnail   String?
   category    String?
@@ -109,6 +153,33 @@ model BlogArticle {
   updatedAt   DateTime      @updatedAt
 
   @@map("blog_articles")
+}
+
+model TeamMember {
+  id        String        @id @default(cuid())
+  name      String
+  poste     String
+  bio       String?       @db.LongText
+  photo     String?
+  status    ContentStatus @default(DRAFT)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("team_members")
+}
+
+model AppSettings {
+  id               String   @id @default("singleton")
+  siteName         String?
+  siteTagline      String?
+  youtubeApiKey    String?
+  youtubeChannelId String?
+  agentObsToken    String?
+  obsWsPort        String?
+  obsWsPassword    String?
+  updatedAt        DateTime @updatedAt
+
+  @@map("app_settings")
 }
 
 model ProgrammeItem {
@@ -134,7 +205,9 @@ model Reunion {
   hostId       String
   host         User          @relation(fields: [hostId], references: [id], onDelete: Cascade)
   status       ReunionStatus @default(SCHEDULED)
-  participants Json?
+  assignedUserIds Json?
+  roomSlug     String?       @unique
+  accessCode   String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -156,6 +229,7 @@ model Formation {
   fin                     String?
   placesRestantes         Int           @default(0)
   joursClotureInscription Int           @default(0)
+  clotureInscriptions     DateTime?
   img                     String?
   competences             Json?
   modules                 Json?
@@ -178,6 +252,8 @@ model ContactMessage {
   message     String   @db.LongText
   status      String   @default("NEW")
   assignedTo  String?
+  context     String?
+  contextId   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -187,13 +263,41 @@ model ContactMessage {
 model Equipment {
   id          String   @id @default(cuid())
   name        String
+  slug        String?  @unique
   category    String?
   status      String   @default("AVAILABLE")
   description String?  @db.LongText
   location    String?
   image       String?
+  tarifJour   Int?
+  caution     String?
+  images      Json?
+  specs       Json?
+  conditions  Json?
+  reservedDates Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@map("equipment")
+}
+
+model StudioBooking {
+  id          String              @id @default(cuid())
+  date        String
+  heure       String?
+  forfait     String
+  typeProjet  String?
+  prenom      String
+  nom         String
+  email       String
+  telephone   String
+  entreprise  String?
+  description String?             @db.LongText
+  modePaiement String?
+  reference   String              @unique
+  status      StudioBookingStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@map("studio_bookings")
 }

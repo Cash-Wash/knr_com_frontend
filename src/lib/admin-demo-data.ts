@@ -11,7 +11,7 @@ export type AdminUser = {
 export type AdminLive = {
   id: string;
   titre: string;
-  youtubeUrl: string;
+  youtubeUrl?: string | null;
   youtubeId?: string;
   status: "scheduled" | "live" | "ended";
   viewers: number;
@@ -27,7 +27,10 @@ export type AdminReunion = {
   scheduledAt: string;
   host: string;
   status: "scheduled" | "in-progress" | "ended";
-  participants: string[];
+  assignedUserIds: string[];
+  roomSlug?: string;
+  joinUrl?: string;
+  accessCode?: string;
 };
 
 export type AdminProgrammeItem = {
@@ -126,7 +129,7 @@ export const adminSeedReunions: AdminReunion[] = [
     scheduledAt: "2026-07-12T09:00:00.000Z",
     host: "Aminata Diallo",
     status: "scheduled",
-    participants: ["Aminata Diallo", "Moussa Traore", "Nadia Mensah"],
+    assignedUserIds: [],
   },
   {
     id: "meet_2",
@@ -135,7 +138,7 @@ export const adminSeedReunions: AdminReunion[] = [
     scheduledAt: "2026-07-12T14:30:00.000Z",
     host: "Joel Kouassi",
     status: "in-progress",
-    participants: ["Joel Kouassi", "Moussa Traore"],
+    assignedUserIds: [],
   },
 ];
 
@@ -219,10 +222,12 @@ export const adminProfileSeed = {
   bio: "Direction editoriale et administration de la plateforme KNR.",
 };
 
-export function getYoutubeEmbedUrl(input: string, youtubeId?: string) {
+export function getYoutubeEmbedUrl(input?: string | null, youtubeId?: string | null) {
   if (youtubeId) {
     return `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&controls=1&rel=0`;
   }
+
+  if (!input) return null;
 
   const idMatch =
     input.match(/[?&]v=([^&]+)/)?.[1] ??

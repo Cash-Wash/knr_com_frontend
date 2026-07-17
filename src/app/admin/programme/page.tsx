@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, Clock3, PencilLine, Plus, Radio, Trash2 } from "lucide-react";
+import { CalendarDays, Clock3, PencilLine, Plus, Trash2 } from "lucide-react";
 import { AdminProgrammeItem, adminSeedProgramme } from "@/lib/admin-demo-data";
 
 const emptyProgramme = {
@@ -39,6 +39,8 @@ export default function AdminProgrammePage() {
     };
 
     loadProgramme();
+    const interval = setInterval(loadProgramme, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const openCreate = () => {
@@ -70,7 +72,6 @@ export default function AdminProgrammePage() {
           heure: form.heure,
           titre: form.titre,
           description: form.description,
-          statut: "scheduled",
           date: new Date().toISOString().slice(0, 10),
         }),
       });
@@ -87,38 +88,6 @@ export default function AdminProgrammePage() {
     }
 
     setShowForm(false);
-  };
-
-  const markCurrent = async (id: string) => {
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-      const response = await fetch(`${apiBase}/api/programme/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
-        },
-        body: JSON.stringify({ statut: "CURRENT" }),
-      });
-
-      if (!response.ok) {
-        throw new Error("status failed");
-      }
-
-      const saved = await response.json();
-      setItems((current) =>
-        current.map((item) =>
-          item.id === id
-            ? saved
-            : item.statut === "en-cours"
-              ? { ...item, statut: "passé" }
-              : item
-        )
-      );
-      setBackendError("");
-    } catch {
-      setBackendError("Connexion MySQL indisponible. Le programme doit etre relance depuis le backend.");
-    }
   };
 
   const removeItem = async (id: string) => {
@@ -157,7 +126,7 @@ export default function AdminProgrammePage() {
               Planifiez le flux editorial et la grille du jour.
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-              Cette grille alimente la page WebTV quand aucun live n&apos;est en direct, et peut etre adaptee depuis l&apos;espace admin.
+              Le statut (à venir / en cours / passé) est calculé automatiquement selon l&apos;heure actuelle — inutile de le forcer manuellement.
             </p>
           </div>
           <button
@@ -228,13 +197,6 @@ export default function AdminProgrammePage() {
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => markCurrent(item.id)}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-sky-500 px-3 py-2 text-sm font-semibold text-white"
-                  >
-                    <Radio className="h-4 w-4" />
-                    Marquer en cours
-                  </button>
                   <button
                     onClick={() => openEdit(item)}
                     className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"

@@ -102,67 +102,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8 text-slate-900">
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-          <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-700">
-            <ShieldCheck className="h-4 w-4" />
-            Espace admin personnalise pour KNR COM
-          </div>
-          <h1 className="mt-5 max-w-3xl text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
-            Pilotez les lives, la redaction et la diffusion avec une interface claire.
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-            Cette version donne a l&apos;equipe admin un centre de controle unique pour la Web TV,
-            les reunions, les utilisateurs, le blog et le programme du jour.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/admin/lives"
-              className="inline-flex items-center gap-2 rounded-2xl bg-sky-500 px-5 py-3 font-semibold text-white transition hover:bg-sky-600"
-            >
-              Ouvrir le live
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/admin/profile"
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
-            >
-              Modifier le profil
-            </Link>
-          </div>
-        </div>
-
-        <div className="rounded-[32px] border border-slate-200 bg-slate-50 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.05)]">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Etat actuel</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900">Live et programme</h2>
-            </div>
-            <TrendingUp className="h-5 w-5 text-sky-500" />
-          </div>
-
-          <div className="mt-5 space-y-4">
-            <div className="rounded-3xl border border-red-200 bg-red-50 p-4">
-              <p className="text-xs uppercase tracking-[0.24em] text-red-600">Live en cours</p>
-              <h3 className="mt-2 text-lg font-semibold text-slate-900">{activeLive.titre}</h3>
-              <p className="mt-1 text-sm text-slate-600">{activeLive.programme}</p>
-              <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-                <Eye className="h-4 w-4 text-red-500" />
-                {activeLive.viewers.toLocaleString("fr-FR")} spectateurs
-              </div>
-            </div>
-            <div className="rounded-3xl border border-slate-200 bg-white p-4">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Programme en cours</p>
-              <h3 className="mt-2 text-lg font-semibold text-slate-900">
-                {activeProgramme?.titre ?? "Aucun element actif"}
-              </h3>
-              <p className="mt-1 text-sm text-slate-600">
-                {activeProgramme?.description ?? "Planifiez ou modifiez le programme depuis l&apos;espace admin."}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+     
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {statCards.map((card) => {
