@@ -1056,7 +1056,7 @@ function FAQSection() {
                         transition={{ duration: 0.35, ease: "easeOut" }}
                         className="overflow-hidden"
                       >
-                        <p className="px-8 pb-6 text-gray-300 text-base font-normal font-['Poppins'] leading-7">
+                        <p className="px-8 pb-6 text-white text-base font-normal font-['Poppins'] leading-7">
                           {item.a}
                         </p>
                       </motion.div>
