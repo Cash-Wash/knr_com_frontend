@@ -30,10 +30,19 @@ export default function StartReunionModal({ isOpen, onClose, users, onStart }: S
         setLoading(true);
         try {
             const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
             await fetch(`${base}/api/reunions`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ titre: title, heure: new Date().toISOString(), participants: selectedUsers })
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    titre: title.trim(),
+                    description: "Réunion lancée depuis la console admin",
+                    scheduledAt: new Date().toISOString(),
+                    participants: selectedUsers,
+                })
             });
             onStart(title, selectedUsers);
             setTitle("");

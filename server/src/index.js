@@ -455,6 +455,41 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "knr-admin-api" });
 });
 
+app.post("/api/start-live", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  const { titre, title, emissionId } = req.body ?? {};
+  const resolvedTitle = titre || title || `Live ${new Date().toLocaleString("fr-FR")}`;
+
+  const existingLive = await prisma.live.findFirst({ where: { status: "LIVE" }, orderBy: { updatedAt: "desc" } });
+  if (existingLive) {
+    await prisma.live.update({
+      where: { id: existingLive.id },
+      data: { status: "ENDED", endedAt: new Date() },
+    });
+  }
+
+  const live = await prisma.live.create({
+    data: {
+      titre: resolvedTitle,
+      youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      youtubeId: "dQw4w9WgXcQ",
+      status: "LIVE",
+      viewers: 0,
+      programme: "Diffusion démarrée depuis l'interface d'administration",
+      createdBy: req.user.sub,
+      startedAt: new Date(),
+      endedAt: null,
+    },
+  });
+
+  await prisma.live.updateMany({
+    where: { id: { not: live.id }, status: "LIVE" },
+    data: { status: "ENDED", endedAt: new Date() },
+  });
+
+  io.emit("live:started", mapLive(live));
+  res.json({ ok: true, live: mapLive(live), emission: { id: emissionId || live.id, titre: resolvedTitle } });
+}));
+
 app.post("/api/auth/login", asyncHandler(async (req, res) => {
   const { email, password } = req.body ?? {};
   if (!email || !password) {
@@ -698,9 +733,10 @@ app.get("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (_r
 }));
 
 app.post("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const { titre, description = "", scheduledAt, hostId, host, participants = [] } = req.body ?? {};
+  const { titre, description = "", scheduledAt, heure, hostId, host, participants = [] } = req.body ?? {};
+  const resolvedScheduledAt = scheduledAt || heure;
   const resolvedHostId = hostId || req.user.sub;
-  if (!titre || !scheduledAt) {
+  if (!titre || !resolvedScheduledAt) {
     return res.status(400).json({ error: "Titre, date et responsable requis." });
   }
 
@@ -708,7 +744,7 @@ app.post("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (r
     data: {
       titre,
       description: description || null,
-      scheduledAt: new Date(scheduledAt),
+      scheduledAt: new Date(resolvedScheduledAt),
       hostId: resolvedHostId,
       status: "SCHEDULED",
       participants,

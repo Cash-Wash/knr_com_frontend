@@ -18,10 +18,14 @@ export default function StartLiveModal({ isOpen, onClose, onStart }: StartLiveMo
         setLoading(true);
         try {
             const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
             await fetch(`${base}/api/start-live`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ emissionId: `e${Date.now()}` })
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ titre: title.trim(), emissionId: `e${Date.now()}` })
             });
             onStart(title);
             setTitle("");

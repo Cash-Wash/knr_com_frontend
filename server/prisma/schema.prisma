@@ -54,6 +54,7 @@ model User {
   articles   BlogArticle[]
   reunions   Reunion[]
   lives      Live[]
+  programmeItems ProgrammeItem[]
 
   @@map("users")
 }
