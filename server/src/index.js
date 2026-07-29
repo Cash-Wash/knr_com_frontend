@@ -862,6 +862,7 @@ app.delete("/api/lives/:id", authMiddleware, adminMiddleware, asyncHandler(async
 
 async function endLive(id, { agentWarning = null } = {}) {
   youtubeDiscovery.stopDiscovery(id);
+  youtubeDiscovery.stopViewerPolling(id);
   const live = await prisma.live.update({
     where: { id },
     data: { status: "ENDED", endedAt: new Date() },
@@ -924,6 +925,11 @@ app.post("/api/lives/:id/start", authMiddleware, adminMiddleware, asyncHandler(a
 
   io.emit("live:started", mapLive(live));
 
+  const onViewersUpdate = async (viewers) => {
+    const updated = await prisma.live.update({ where: { id: live.id }, data: { viewers } });
+    io.emit("live:viewers_updated", mapLive(updated));
+  };
+
   if (!live.youtubeId) {
     youtubeDiscovery.startDiscovery(live.id, {
       onFound: async (videoId) => {
@@ -932,9 +938,12 @@ app.post("/api/lives/:id/start", authMiddleware, adminMiddleware, asyncHandler(a
           data: { youtubeId: videoId, youtubeUrl: `https://www.youtube.com/watch?v=${videoId}` },
         });
         io.emit("live:youtube_ready", mapLive(updated));
+        youtubeDiscovery.startViewerPolling(live.id, videoId, onViewersUpdate);
       },
       onGiveUp: () => io.emit("live:youtube_pending", { liveId: live.id }),
     });
+  } else {
+    youtubeDiscovery.startViewerPolling(live.id, live.youtubeId, onViewersUpdate);
   }
 
   res.json({ ok: true, live: mapLive(live) });

@@ -7,7 +7,7 @@ Vous n'avez besoin de toucher au code à aucun moment : tout se passe dans OBS, 
 ## Vue d'ensemble
 
 - **OBS Studio** (sur le PC de diffusion) capture l'image/le son et envoie le flux vers YouTube.
-- **L'Agent OBS** (`agent-obs/`) est un petit programme qui tourne sur ce même PC. Il reçoit les ordres "démarrer/arrêter" depuis l'admin et les transmet à OBS.
+- **L'Agent OBS** (`agent-obs/`) est un petit programme qui tourne sur ce même PC. Il reçoit les ordres "démarrer/arrêter" depuis l'admin et les transmet à OBS. Deux façons de le faire tourner : une application avec icône dans la barre des tâches (recommandé), ou un script Node.js en ligne de commande (option avancée).
 - **La page Paramètres** de l'admin centralise les identifiants (clé API YouTube, ID de chaîne, port/mot de passe OBS, token de l'agent). Le port et le mot de passe OBS sont envoyés automatiquement à l'agent dès l'enregistrement — l'agent n'a besoin que de deux valeurs stables en local (`BACKEND_URL` et `AGENT_OBS_TOKEN`), configurées une seule fois.
 
 ## Étape 1 — Créer la clé API YouTube (Google Cloud Console)
@@ -52,31 +52,34 @@ Cliquer **"Enregistrer les paramètres"**.
 
 Le panneau "Diagnostic" doit alors afficher tous les éléments requis comme renseignés (coche verte), à l'exception de "Agent OBS connecté" et "OBS Studio connecté" qui ne passeront au vert qu'après l'étape 7.
 
-## Étape 6 — Télécharger et installer l'Agent OBS (à faire une seule fois)
+## Étape 6 — Installer l'Agent OBS (à faire une seule fois)
 
-1. Toujours sur la page Paramètres, cliquer **"Télécharger la configuration Agent OBS"**. Un fichier `.env` est téléchargé, contenant seulement l'URL du serveur et le token — le port et le mot de passe OBS ne sont plus dans un fichier local, l'agent les reçoit directement du serveur.
-2. Sur le PC de diffusion, si ce n'est pas déjà fait, récupérer le dossier `agent-obs/` du projet (il contient `index.js`, `package.json`, etc.).
-3. Placer le fichier `.env` téléchargé directement à l'intérieur du dossier `agent-obs/`, à côté de `index.js`.
-4. Ouvrir un terminal dans ce dossier `agent-obs/` et lancer :
-   ```
+**Méthode recommandée — application avec icône dans la barre des tâches :**
+
+1. Toujours sur la page Paramètres, cliquer **"Télécharger l'Agent OBS (installeur Windows)"** et installer le fichier téléchargé sur le PC de diffusion.
+2. Lancer l'application. Une icône apparaît dans la barre des tâches Windows.
+3. Double-cliquer l'icône → "Ouvrir les paramètres" → renseigner l'**URL du site** et le **Token Agent OBS** (le même texte que celui saisi à l'étape 5), puis "Enregistrer et se connecter".
+4. L'icône passe au vert dès que l'agent est connecté. Elle reste résidente et se relance automatiquement à l'ouverture de session Windows.
+
+Cette étape ne se refait plus jamais ensuite : si vous changez le port ou le mot de passe OBS plus tard dans Paramètres, l'agent déjà lancé se reconfigure tout seul, sans rien réinstaller ni relancer.
+
+**Option avancée — script en ligne de commande (Node.js + pm2), sans interface graphique :**
+
+1. Sur la page Paramètres, dérouler "Option avancée : installation manuelle" et cliquer **"Télécharger la configuration (.env)"**. Le fichier contient l'URL du serveur et le token.
+2. Placer ce fichier `.env` dans le dossier `agent-obs/` du projet, à côté de `index.js`.
+3. Installer et lancer :
+   ```bash
+   cd agent-obs
    npm install
-   npm start
+   npm run legacy:start
    ```
-5. Le terminal doit afficher la connexion au serveur, puis la réception de la config OBS, puis la connexion à OBS.
-
-Cette étape 6 ne se refait plus jamais ensuite : si vous changez le port ou le mot de passe OBS plus tard dans Paramètres, l'agent déjà lancé se reconfigure tout seul, sans rien retélécharger ni relancer.
-
-### Garder l'agent actif en permanence (recommandé)
-
-Pour ne pas avoir à relancer l'agent manuellement à chaque direct (et qu'il redémarre automatiquement si le PC redémarre ou si le programme plante), utilisez pm2 :
-
-```bash
-cd agent-obs
-npm install -g pm2
-npm run service:start
-pm2 save
-pm2-startup install
-```
+4. Pour le garder actif en permanence (redémarre seul en cas de plantage ou de redémarrage du PC) :
+   ```bash
+   npm install -g pm2
+   npm run service:start
+   pm2 save
+   pm2-startup install
+   ```
 
 Voir `agent-obs/README.md` pour le détail des commandes (logs, arrêt, etc.) et l'alternative via le Planificateur de tâches Windows.
 
@@ -87,8 +90,13 @@ Voir `agent-obs/README.md` pour le détail des commandes (logs, arrêt, etc.) et
 3. Après quelques secondes, l'URL/ID YouTube du direct doit se remplir automatiquement dans l'admin (le serveur interroge YouTube pour détecter que la chaîne est en direct).
 4. Terminer le direct depuis l'admin — OBS doit arrêter le stream automatiquement.
 
+## Nombre de spectateurs en direct
+
+Aucune configuration supplémentaire n'est nécessaire : dès qu'un direct est détecté "en direct" côté YouTube (étape 7.3), le serveur interroge automatiquement l'API YouTube Data (avec la même clé API que l'étape 1) toutes les 30 secondes pour récupérer le nombre de spectateurs simultanés, et le diffuse en temps réel sur `/admin/lives` et `/webtv`. Ce suivi démarre et s'arrête tout seul avec le direct.
+
 ## En cas de problème
 
-- **"Agent OBS connecté" reste rouge** → l'agent n'a pas pu joindre le serveur. Vérifier que `BACKEND_URL` dans le `.env` de l'agent pointe bien vers l'adresse accessible du serveur, et que le `AGENT_OBS_TOKEN` correspond exactement à celui affiché dans Paramètres.
+- **"Agent OBS connecté" reste rouge** → l'agent n'a pas pu joindre le serveur. Vérifier que l'URL du site (ou `BACKEND_URL` dans le `.env` pour l'option avancée) pointe bien vers l'adresse accessible du serveur, et que le token correspond exactement à celui affiché dans Paramètres.
 - **"OBS Studio connecté" reste rouge** → vérifier le port et le mot de passe obs-websocket enregistrés dans Paramètres (étape 3/5) et qu'OBS est bien ouvert sur le PC où tourne l'agent. Après une correction dans Paramètres, l'agent se reconnecte automatiquement — pas besoin de le relancer.
 - **Le direct démarre dans OBS mais l'ID YouTube ne se remplit jamais** → vérifier la clé API YouTube et l'ID de chaîne (étapes 1-2), et que la chaîne est bien passée "en direct" côté YouTube (cela peut prendre jusqu'à 1-2 minutes).
+- **Un ancien direct affiche une vidéo qui n'a rien à voir avec le vrai direct** → un live créé/modifié manuellement en base avec un `youtubeId` déjà renseigné n'est jamais redécouvert automatiquement (le serveur fait confiance à cette valeur tant qu'elle existe). Dans l'admin **Live**, supprimer la ligne concernée et recréer le live (en laissant les champs "URL YouTube"/"ID YouTube" vides) pour que la détection automatique (étapes 1-2) fasse son travail.

@@ -79,6 +79,7 @@ export default function AdminLivesPage() {
     const onLiveStarted = (live: AdminLive) => mergeLive(live);
     const onLiveStopped = (live: AdminLive) => mergeLive(live);
     const onYoutubeReady = (live: AdminLive) => mergeLive(live);
+    const onViewersUpdated = (live: AdminLive) => mergeLive(live);
     const onYoutubePending = () =>
       setNotice("Détection automatique de la vidéo YouTube en échec — renseignez l'URL manuellement si besoin.");
 
@@ -86,6 +87,7 @@ export default function AdminLivesPage() {
     socket.on("live:started", onLiveStarted);
     socket.on("live:stopped", onLiveStopped);
     socket.on("live:youtube_ready", onYoutubeReady);
+    socket.on("live:viewers_updated", onViewersUpdated);
     socket.on("live:youtube_pending", onYoutubePending);
 
     return () => {
@@ -93,6 +95,7 @@ export default function AdminLivesPage() {
       socket.off("live:started", onLiveStarted);
       socket.off("live:stopped", onLiveStopped);
       socket.off("live:youtube_ready", onYoutubeReady);
+      socket.off("live:viewers_updated", onViewersUpdated);
       socket.off("live:youtube_pending", onYoutubePending);
     };
   }, []);
@@ -228,10 +231,18 @@ export default function AdminLivesPage() {
                   Agent OBS connecté
                 </div>
               ) : agentOnline === false ? (
-                <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
-                  <WifiOff className="h-4 w-4" />
-                  Agent OBS hors ligne
-                </div>
+                <>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+                    <WifiOff className="h-4 w-4" />
+                    Agent OBS hors ligne
+                  </div>
+                  <a
+                    href="/downloads/agent-obs-setup.exe"
+                    className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+                  >
+                    Télécharger l&apos;Agent OBS
+                  </a>
+                </>
               ) : null}
             </div>
             <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">

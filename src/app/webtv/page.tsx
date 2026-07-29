@@ -111,16 +111,19 @@ export default function WebTVPage() {
     const onLiveStarted = (live: Live) => applyLive(live);
     const onLiveStopped = () => applyLive(null);
     const onYoutubeReady = (live: Live) => applyLive(live);
+    const onViewersUpdated = (live: Live) => applyLive(live);
 
     socket.on("live:started", onLiveStarted);
     socket.on("live:stopped", onLiveStopped);
     socket.on("live:youtube_ready", onYoutubeReady);
+    socket.on("live:viewers_updated", onViewersUpdated);
 
     return () => {
       clearInterval(pollInterval);
       socket.off("live:started", onLiveStarted);
       socket.off("live:stopped", onLiveStopped);
       socket.off("live:youtube_ready", onYoutubeReady);
+      socket.off("live:viewers_updated", onViewersUpdated);
     };
   }, []);
 

@@ -214,23 +214,43 @@ export default function AdminSettingsPage() {
               {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               {showSecrets ? "Masquer" : "Afficher"} les valeurs
             </button>
-            <button
-              type="button"
-              onClick={downloadAgentConfig}
-              disabled={!settings.agentObsToken}
-              className="inline-flex w-fit items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+
+            <a
+              href="/downloads/agent-obs-setup.exe"
+              className="inline-flex w-fit items-center gap-2 rounded-2xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600"
             >
               <Download className="h-4 w-4" />
-              Télécharger la configuration Agent OBS
-            </button>
+              Télécharger l&apos;Agent OBS (installeur Windows)
+            </a>
             <p className="text-xs text-slate-500">
-              À faire une seule fois : enregistrez ce fichier sous le nom <code>.env</code> dans le dossier{" "}
-              <code>agent-obs/</code> sur le PC de diffusion (à côté de <code>index.js</code>), puis lancez{" "}
-              <code>npm install</code> et <code>npm start</code>. Le port et le mot de passe OBS ne sont plus dans ce
-              fichier — l&apos;agent les reçoit automatiquement du serveur, y compris si vous les changez plus tard. Voir{" "}
-              <code>configurationlive.md</code> à la racine du projet pour le guide complet, étape par étape (y compris
-              comment garder l&apos;agent actif en permanence).
+              À installer une seule fois sur le PC de diffusion. Une icône apparaît dans la barre des tâches ; double-cliquez
+              dessus pour entrer l&apos;URL du site et le token Agent OBS ci-dessus. Le port et le mot de passe OBS ne sont
+              jamais saisis dans l&apos;agent — il les reçoit automatiquement du serveur, y compris si vous les changez plus
+              tard.
             </p>
+
+            <details className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                Option avancée : installation manuelle (Node.js + pm2)
+              </summary>
+              <div className="mt-3 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={downloadAgentConfig}
+                  disabled={!settings.agentObsToken}
+                  className="inline-flex w-fit items-center gap-2 rounded-2xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" />
+                  Télécharger la configuration (.env)
+                </button>
+                <p className="text-xs text-slate-500">
+                  Enregistrez ce fichier sous le nom <code>.env</code> dans le dossier <code>agent-obs/</code> du projet
+                  (à côté de <code>index.js</code>), puis lancez <code>npm install</code> et{" "}
+                  <code>npm run legacy:start</code> (ou <code>npm run service:start</code> avec pm2 pour rester actif en
+                  permanence). Voir <code>configurationlive.md</code> à la racine du projet pour le guide complet.
+                </p>
+              </div>
+            </details>
           </div>
         </div>
       </section>
