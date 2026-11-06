@@ -20,18 +20,19 @@ export type AdminLive = {
   programme: string;
 };
 
-export type AdminReunion = {
-  id: string;
-  titre: string;
-  description: string;
-  scheduledAt: string;
-  host: string;
-  status: "scheduled" | "in-progress" | "ended";
-  assignedUserIds: string[];
-  roomSlug?: string;
-  joinUrl?: string;
-  accessCode?: string;
-};
+// Fonctionnalité "Réunions" désactivée.
+// export type AdminReunion = {
+//   id: string;
+//   titre: string;
+//   description: string;
+//   scheduledAt: string;
+//   host: string;
+//   status: "scheduled" | "in-progress" | "ended";
+//   assignedUserIds: string[];
+//   roomSlug?: string;
+//   joinUrl?: string;
+//   accessCode?: string;
+// };
 
 export type AdminProgrammeItem = {
   id: string;
@@ -121,26 +122,27 @@ export const adminSeedLives: AdminLive[] = [
   },
 ];
 
-export const adminSeedReunions: AdminReunion[] = [
-  {
-    id: "meet_1",
-    titre: "Reunion editoriale",
-    description: "Preparation des contenus de la semaine et planning redactionnel.",
-    scheduledAt: "2026-07-12T09:00:00.000Z",
-    host: "Aminata Diallo",
-    status: "scheduled",
-    assignedUserIds: [],
-  },
-  {
-    id: "meet_2",
-    titre: "Coordination technique live",
-    description: "Verifier la regie et le lancement du flux YouTube.",
-    scheduledAt: "2026-07-12T14:30:00.000Z",
-    host: "Joel Kouassi",
-    status: "in-progress",
-    assignedUserIds: [],
-  },
-];
+// Fonctionnalité "Réunions" désactivée.
+// export const adminSeedReunions: AdminReunion[] = [
+//   {
+//     id: "meet_1",
+//     titre: "Reunion editoriale",
+//     description: "Preparation des contenus de la semaine et planning redactionnel.",
+//     scheduledAt: "2026-07-12T09:00:00.000Z",
+//     host: "Aminata Diallo",
+//     status: "scheduled",
+//     assignedUserIds: [],
+//   },
+//   {
+//     id: "meet_2",
+//     titre: "Coordination technique live",
+//     description: "Verifier la regie et le lancement du flux YouTube.",
+//     scheduledAt: "2026-07-12T14:30:00.000Z",
+//     host: "Joel Kouassi",
+//     status: "in-progress",
+//     assignedUserIds: [],
+//   },
+// ];
 
 export const adminSeedProgramme: AdminProgrammeItem[] = [
   {

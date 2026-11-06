@@ -40,7 +40,8 @@ const navItems = [
   { label: "Entrepreneurs", icon: Briefcase, href: "/admin/entrepreneurs", match: ["/admin/entrepreneurs"] },
   // { label: "Emissions Video", icon: Video, href: "/admin/webtv", match: ["/admin/webtv"] },
 { label: "Live", icon: Radio, href: "/admin/lives", match: ["/admin/lives"] },
-  { label: "Reunions", icon: CalendarClock, href: "/admin/reunions", match: ["/admin/reunions"] },
+  // Fonctionnalité "Réunions" désactivée.
+  // { label: "Reunions", icon: CalendarClock, href: "/admin/reunions", match: ["/admin/reunions"] },
   { label: "Programme", icon: Clock, href: "/admin/programme", match: ["/admin/programme"] },
   { label: "Utilisateurs", icon: Users, href: "/admin/users", match: ["/admin/users"] },
   { label: "Profil", icon: User, href: "/admin/profile", match: ["/admin/profile"] },

@@ -8,7 +8,8 @@ import { Users, Video, LogOut, User, FileText, Clock, Settings, PlaySquare, Mess
 const menuItems = [
   { icon: Video, label: "Dashboard", href: "/admin" },
   { icon: PlaySquare, label: "Live", href: "/admin/lives" },
-  { icon: MessageCircle, label: "Reunions", href: "/admin/reunions" },
+  // Fonctionnalité "Réunions" désactivée.
+  // { icon: MessageCircle, label: "Reunions", href: "/admin/reunions" },
   { icon: FileText, label: "Blog", href: "/admin/blog" },
   { icon: Clock, label: "Programme", href: "/admin/programme" },
   { icon: Users, label: "Utilisateurs", href: "/admin/users" },

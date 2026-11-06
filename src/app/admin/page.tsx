@@ -17,13 +17,13 @@ import {
   adminSeedArticles,
   adminSeedLives,
   adminSeedProgramme,
-  adminSeedReunions,
   adminSeedUsers,
 } from "@/lib/admin-demo-data";
 
 const quickLinks = [
   { href: "/admin/lives", label: "Gerer le live", description: "Demarrer, arreter, planifier", icon: PlayCircle },
-  { href: "/admin/reunions", label: "Lancer une reunion", description: "Equipe, ordre du jour, participants", icon: MessageCircle },
+  // Fonctionnalité "Réunions" désactivée.
+  // { href: "/admin/reunions", label: "Lancer une reunion", description: "Equipe, ordre du jour, participants", icon: MessageCircle },
   { href: "/admin/blog", label: "Publier un article", description: "Brouillon, edition et mise en ligne", icon: FileText },
   { href: "/admin/programme", label: "Programme du jour", description: "Adapter la grille en temps reel", icon: CalendarDays },
 ];
@@ -33,7 +33,6 @@ export default function AdminDashboard() {
     users: adminSeedUsers.filter((user) => user.active).length,
     lives: adminSeedLives.length,
     articles: adminSeedArticles.filter((article) => article.status === "published").length,
-    reunions: adminSeedReunions.length,
     liveNow: adminSeedLives.find((live) => live.status === "live") ?? adminSeedLives[0],
   };
 
@@ -58,7 +57,6 @@ export default function AdminDashboard() {
           users: Number(payload.users ?? current.users),
           lives: Number(payload.lives ?? current.lives),
           articles: Number(payload.articles ?? current.articles),
-          reunions: Number(payload.reunions ?? current.reunions),
           liveNow: payload.liveNow ?? current.liveNow,
         }));
       } catch {
@@ -88,12 +86,13 @@ export default function AdminDashboard() {
       hint: "Blog et contenus d&apos;edition",
       icon: FileText,
     },
-    {
-      label: "Reunions du jour",
-      value: summary.reunions,
-      hint: "Production et coordination",
-      icon: MessageCircle,
-    },
+    // Fonctionnalité "Réunions" désactivée.
+    // {
+    //   label: "Reunions du jour",
+    //   value: summary.reunions,
+    //   hint: "Production et coordination",
+    //   icon: MessageCircle,
+    // },
   ];
 
   const activeLive = summary.liveNow ?? adminSeedLives[0];

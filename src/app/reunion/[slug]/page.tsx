@@ -1,5 +1,8 @@
 "use client";
 
+// Fonctionnalité "Réunions" désactivée — tout le code d'origine est conservé
+// ci-dessous en commentaire pour réactivation future.
+/*
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { CalendarClock, Clock3, KeyRound, Loader2, User } from "lucide-react";
@@ -33,7 +36,7 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-export default function PublicReunionPage() {
+function PublicReunionPageImpl() {
   const { slug } = useParams<{ slug: string }>();
   const [reunion, setReunion] = useState<PublicReunion | null>(null);
   const [joinUrl, setJoinUrl] = useState<string | null>(null);
@@ -197,6 +200,15 @@ export default function PublicReunionPage() {
           </div>
         )}
       </div>
+    </main>
+  );
+}
+*/
+
+export default function PublicReunionPage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-center px-4">
+      <p className="text-white/70">Fonctionnalité &laquo;&nbsp;Réunions&nbsp;&raquo; désactivée.</p>
     </main>
   );
 }

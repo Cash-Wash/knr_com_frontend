@@ -1,3 +1,6 @@
+// Fonctionnalité "Réunions" désactivée — ce composant n'était déjà plus utilisé.
+// Code conservé ci-dessous pour réactivation future.
+/*
 "use client";
 
 import React, { useState } from "react";
@@ -118,3 +121,4 @@ export default function StartReunionModal({ isOpen, onClose, users, onStart }: S
         </div>
     );
 }
+*/

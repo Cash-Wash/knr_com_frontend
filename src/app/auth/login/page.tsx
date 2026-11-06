@@ -76,7 +76,7 @@ export default function LoginPage() {
                   Un seul espace pour gerer le live, le blog et la Web TV.
                 </h1>
                 <p className="mt-4 max-w-lg text-sm leading-7 text-slate-300">
-                  Connectez-vous pour piloter les emissions, les reunions Teams, les programmes du jour et
+                  Connectez-vous pour piloter les emissions, les programmes du jour et
                   les contenus publies.
                 </p>
               </div>

@@ -1,3 +1,6 @@
+// Fonctionnalité "Réunions" désactivée — ce composant n'est plus utilisé.
+// Code conservé ci-dessous pour réactivation future.
+/*
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -83,3 +86,4 @@ export default function JitsiMeetEmbed({ roomSlug, displayName, className }: Jit
 
   return <div ref={containerRef} className={`absolute inset-0 ${className ?? ""}`} />;
 }
+*/

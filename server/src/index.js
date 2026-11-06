@@ -97,6 +97,9 @@ function mapLive(live) {
   };
 }
 
+// Fonctionnalité "Réunions" désactivée — voir le bloc commenté ci-dessous et
+// les routes /api/reunions* / /api/public/reunions* plus loin dans ce fichier.
+/*
 function mapReunion(reunion) {
   return {
     id: reunion.id,
@@ -120,6 +123,7 @@ function generateAccessCode() {
 function normalizeReunionStatus(status) {
   return String(status).toUpperCase().replace(/-/g, "_");
 }
+*/
 
 function mapEntrepreneur(item) {
   return {
@@ -437,6 +441,8 @@ async function seedDatabase() {
     });
   }
 
+  // Fonctionnalité "Réunions" désactivée — plus de seed de réunions de démo.
+  /*
   if ((await prisma.reunion.count()) === 0) {
     await prisma.reunion.createMany({
       data: [
@@ -459,6 +465,7 @@ async function seedDatabase() {
       ],
     });
   }
+  */
 
   if ((await prisma.programmeItem.count()) === 0) {
     await prisma.programmeItem.createMany({
@@ -737,11 +744,11 @@ app.patch("/api/auth/me", authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 app.get("/api/dashboard/summary", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
-  const [users, lives, articles, reunions, programme] = await Promise.all([
+  const [users, lives, articles, programme] = await Promise.all([
     prisma.user.count(),
     prisma.live.count(),
     prisma.blogArticle.count(),
-    prisma.reunion.count(),
+    // reunions: fonctionnalité désactivée — prisma.reunion.count() retiré du résumé.
     prisma.programmeItem.count(),
   ]);
 
@@ -751,7 +758,6 @@ app.get("/api/dashboard/summary", authMiddleware, adminMiddleware, asyncHandler(
     users,
     lives,
     articles,
-    reunions,
     programme,
     liveNow: liveNow ? mapLive(liveNow) : null,
   });
@@ -963,6 +969,8 @@ app.post("/api/lives/:id/stop", authMiddleware, adminMiddleware, asyncHandler(as
   res.json({ ok: true, live: mapLive(live), warning: agentWarning });
 }));
 
+// Fonctionnalité "Réunions" désactivée — routes admin commentées.
+/*
 app.get("/api/reunions", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
   const reunions = await prisma.reunion.findMany({
     include: { host: true },
@@ -1021,6 +1029,7 @@ app.delete("/api/reunions/:id", authMiddleware, adminMiddleware, asyncHandler(as
   await prisma.reunion.delete({ where: { id: req.params.id } });
   res.status(204).end();
 }));
+*/
 
 app.get("/api/programme", authMiddleware, adminMiddleware, asyncHandler(async (_req, res) => {
   const items = await prisma.programmeItem.findMany({ orderBy: [{ date: "desc" }, { heure: "asc" }] });
@@ -1840,6 +1849,8 @@ app.get("/api/public/entrepreneurs", asyncHandler(async (_req, res) => {
   res.json(items.map(mapEntrepreneur));
 }));
 
+// Fonctionnalité "Réunions" désactivée — routes publiques commentées.
+/*
 function getAuthenticatedUser(req) {
   const header = req.headers.authorization ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
@@ -1899,6 +1910,7 @@ app.post("/api/public/reunions/:roomSlug/verify", asyncHandler(async (req, res) 
   const displayName = name && String(name).trim() ? String(name).trim() : "Invité";
   res.json({ ok: true, joinUrl: buildJitsiJoinUrl(reunion.roomSlug, displayName) });
 }));
+*/
 
 app.get("/api/webtv/current", asyncHandler(async (_req, res) => {
   const live = await prisma.live.findFirst({ where: { status: "LIVE" }, orderBy: { updatedAt: "desc" } });

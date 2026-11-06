@@ -1,5 +1,8 @@
 "use client";
 
+// Fonctionnalité "Réunions" désactivée — tout le code d'origine est conservé
+// ci-dessous en commentaire pour réactivation future.
+/*
 import { useEffect, useState } from "react";
 import {
   AlertTriangle, CalendarClock, Copy, KeyRound, Link2, MessageCircle,
@@ -16,7 +19,7 @@ const emptyReunion = {
   assignedUserIds: [] as string[],
 };
 
-export default function AdminReunionsPage() {
+function AdminReunionsPageImpl() {
   const [reunions, setReunions] = useState<AdminReunion[]>(adminSeedReunions);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -484,6 +487,15 @@ export default function AdminReunionsPage() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+*/
+
+export default function AdminReunionsPage() {
+  return (
+    <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center text-slate-500">
+      Fonctionnalité &laquo;&nbsp;Réunions&nbsp;&raquo; désactivée.
     </div>
   );
 }

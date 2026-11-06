@@ -28,8 +28,8 @@ Endpoints exposés (scaffold):
 
 - GET /api/users
 - GET /api/emissions
-- GET /api/reunions
-- POST /api/reunions  (body: { titre, heure, participants: [userIds] })
 - POST /api/start-live (body: { emissionId })
 
-Socket.io: émet `live:started` et `reunion:created` aux clients connectés.
+Socket.io: émet `live:started` aux clients connectés.
+
+(Fonctionnalité "Réunions" désactivée — routes /api/reunions* commentées dans src/index.js.)
